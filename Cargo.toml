@@ -1,0 +1,47 @@
+[package]
+name = "bevy_emoji"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+members = [
+    "crates/bevy_agent_harness",
+    "crates/bevy-agent",
+    "crates/bevy_douyin_minigame",
+    "crates/bevy_douyin_wasm_split",
+]
+resolver = "2"
+
+[features]
+default = ["web_audio"]
+douyin = ["dep:bevy_douyin_minigame", "dep:wasm-split"]
+web_audio = ["bevy/audio"]
+
+[dependencies]
+bevy = { version = "0.19", default-features = false, features = ["2d", "touch"] }
+serde = { version = "1", features = ["derive"] }
+rand = "0.10"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+avian2d = { git = "https://github.com/avianphysics/avian.git", rev = "fc99fdcdbff804fbbe6dc1eb7fc4137e677853d2" }
+bevy_agent_harness = { path = "crates/bevy_agent_harness" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+avian2d = { git = "https://github.com/avianphysics/avian.git", rev = "fc99fdcdbff804fbbe6dc1eb7fc4137e677853d2", default-features = false, features = [
+    "2d",
+    "f32",
+    "parry-f32",
+    "xpbd_joints",
+    "bevy_scene",
+] }
+bevy_agent_harness = { path = "crates/bevy_agent_harness", default-features = false }
+getrandom = { version = "0.4", features = ["wasm_js"] }
+wasm-bindgen = "0.2"
+bevy_douyin_minigame = { path = "crates/bevy_douyin_minigame", optional = true }
+wasm-split = { package = "bevy_douyin_wasm_split", path = "crates/bevy_douyin_wasm_split", optional = true }
+wasm-bindgen-futures = "0.4"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

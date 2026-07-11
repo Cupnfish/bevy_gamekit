@@ -1,0 +1,16 @@
+{
+  "description": "Bevy Douyin Mini Game",
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "postcss": true,
+    "minified": false,
+    "newFeature": true,
+    "autoCompile": true,
+    "compileHotReLoad": true,
+    "nativeCompile": true
+  },
+  "appid": "testAppId",
+  "projectname": "bevy-douyin-minigame",
+  "douyinProjectType": "native"
+}

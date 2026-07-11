@@ -1,0 +1,23 @@
+[package]
+name = "wasm-split-cli"
+version = "0.8.0-alpha.0"
+edition = "2024"
+rust-version = "1.85.0"
+authors = ["Jonathan Kelley"]
+description = "CLI support for splitting Wasm binaries into smaller chunks"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/DioxusLabs/dioxus/"
+
+[lib]
+name = "wasm_split_cli"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1.0.98"
+id-arena = "2.2.1"
+itertools = "0.14.0"
+rayon = "1.10.0"
+tracing = "0.1.41"
+walrus = { version = "0.23.3", features = ["parallel"] }
+wasm-used = "0.8.0-alpha.0"
+wasmparser = "0.235.0"

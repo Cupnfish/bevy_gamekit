@@ -1,0 +1,19 @@
+[package]
+name = "bevy-agent"
+version = "0.1.0"
+edition = "2024"
+description = "CLI for bevy_agent_harness: drive a Bevy game and assert its state over BRP."
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+bevy_agent_harness = { path = "../bevy_agent_harness", default-features = false }
+bevy = { version = "0.19", default-features = false, features = [
+    "keyboard",
+    "bevy_remote",
+] }
+boa_engine = { git = "https://github.com/boa-dev/boa", branch = "main" }
+clap = { version = "4", features = ["derive"] }
+image = { version = "0.25.10", default-features = false, features = ["png"] }
+serde = "1"
+serde_json = "1"
+ureq = { version = "3", features = ["json"] }

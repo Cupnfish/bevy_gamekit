@@ -1,0 +1,84 @@
+"use strict";
+
+let runtimeConfig = null;
+const fusedImports = Object.create(null);
+
+function configure(config) {
+  if (!config || typeof config.readFile !== "function") {
+    throw new TypeError("wasm split runtime requires readFile(path)");
+  }
+  if (typeof config.decompress !== "function") {
+    throw new TypeError("wasm split runtime requires decompress(bytes)");
+  }
+  if (typeof config.mainExports !== "function") {
+    throw new TypeError("wasm split runtime requires mainExports()");
+  }
+  runtimeConfig = config;
+}
+
+function asBytes(value) {
+  if (value instanceof Uint8Array) return value;
+  if (value instanceof ArrayBuffer) return new Uint8Array(value);
+  if (ArrayBuffer.isView(value)) {
+    return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  }
+  throw new TypeError("Wasm chunk reader returned an unsupported value");
+}
+
+function makeImports(main) {
+  const split = Object.create(null);
+  for (const name in main) split[name] = main[name];
+  for (const name in fusedImports) split[name] = fusedImports[name];
+  split.memory = main.memory;
+  split.__indirect_function_table = main.__indirect_function_table;
+  if (main.__stack_pointer !== undefined) split.__stack_pointer = main.__stack_pointer;
+  if (main.__tls_base !== undefined) split.__tls_base = main.__tls_base;
+  return {
+    env: { memory: main.memory },
+    __wasm_split: split,
+  };
+}
+
+function notify(main, callbackIndex, callbackData, success) {
+  if (callbackIndex === undefined) return;
+  const callback = main.__indirect_function_table.get(callbackIndex);
+  callback(callbackData, success);
+}
+
+function makeLoad(path, dependencies) {
+  let loadPromise = null;
+
+  function ensureLoaded() {
+    if (loadPromise) return loadPromise;
+    loadPromise = (async () => {
+      if (!runtimeConfig) throw new Error("wasm split runtime is not configured");
+      await Promise.all(dependencies.map((dependency) => dependency()));
+      const compressed = asBytes(await runtimeConfig.readFile(path));
+      const bytes = asBytes(runtimeConfig.decompress(compressed));
+      const main = runtimeConfig.mainExports();
+      const result = await WebAssembly.instantiate(bytes, makeImports(main));
+      const instance = result instanceof WebAssembly.Instance ? result : result.instance;
+      for (const name in instance.exports) fusedImports[name] = instance.exports[name];
+      return main;
+    })();
+    return loadPromise;
+  }
+
+  return function load(callbackIndex, callbackData) {
+    const pending = ensureLoaded();
+    pending.then(
+      (main) => notify(main, callbackIndex, callbackData, true),
+      (error) => {
+        console.error("Failed to load Wasm split chunk", path, error);
+        try {
+          if (runtimeConfig) notify(runtimeConfig.mainExports(), callbackIndex, callbackData, false);
+        } catch (notifyError) {
+          console.error("Failed to report Wasm split error", notifyError);
+        }
+      },
+    );
+    return pending;
+  };
+}
+
+// __LOADERS__

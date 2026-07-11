@@ -1,0 +1,45 @@
+[package]
+name = "bevy_douyin_wasm_split"
+version = "0.1.0"
+edition = "2024"
+description = "Wasm code splitting and compressed chunk loading for Bevy mini games"
+license = "MIT OR Apache-2.0"
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[features]
+default = ["runtime"]
+runtime = ["dep:upstream-wasm-split"]
+decoder = ["dep:brotli-decompressor", "dep:wasm-bindgen"]
+cli = [
+    "dep:anyhow",
+    "dep:brotli",
+    "dep:clap",
+    "dep:serde",
+    "dep:serde_json",
+    "dep:tempfile",
+    "dep:wasm-split-cli",
+]
+
+[dependencies]
+upstream-wasm-split = { package = "wasm-splitter", version = "0.8.0-alpha.0", optional = true }
+brotli-decompressor = { version = "4", optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+
+anyhow = { version = "1", optional = true }
+brotli = { version = "8", optional = true }
+clap = { version = "4", features = ["derive"], optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
+tempfile = { version = "3", optional = true }
+wasm-split-cli = { path = "vendor/wasm-split-cli", optional = true }
+
+[dev-dependencies]
+brotli-decompressor = "4"
+tempfile = "3"
+
+[[bin]]
+name = "bevy-douyin-split"
+path = "src/bin/bevy-douyin-split.rs"
+required-features = ["cli"]

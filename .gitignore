@@ -1,0 +1,24 @@
+/target
+**/target/
+/crates/*/Cargo.lock
+/dist
+/dist-douyin
+
+# 构建产物 / 运行时生成
+/screenshot.png
+/agent-captures
+/bevy_emoji_save.txt
+
+# 第三方源码克隆与本地 vendored 依赖（体积大、且是独立 git 仓库，
+# 直接 commit 只会留下 gitlink，fresh checkout / CI 拿不到源码）。
+# 本地开发需自行 clone 到这些路径；avian 是 Cargo.toml 的 path 依赖。
+/avian
+/bevy
+/bevy_defer
+/bevy_tape
+/vendor
+/emoji-merge
+
+# Claude Code 本地配置——含 API token 等敏感信息，禁止提交。
+# 若要共享非敏感配置，请用 settings.local.json 之外的方式单独管理。
+/.claude
