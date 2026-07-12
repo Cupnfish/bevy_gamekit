@@ -3,6 +3,7 @@
 /crates/*/Cargo.lock
 /dist
 /dist-douyin
+/dist-wechat
 
 # 构建产物 / 运行时生成
 /screenshot.png

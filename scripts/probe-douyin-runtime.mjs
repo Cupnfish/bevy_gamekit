@@ -75,7 +75,7 @@ const expression = `(() => {
     }
   };
   try {
-    adapter = (sandbox && sandbox.DouyinBevy) || host.DouyinBevy;
+    adapter = (sandbox && sandbox.BevyMiniGame) || host.BevyMiniGame;
     canvas = adapter && adapter.canvas;
     webgl2 = canvas && canvas.getContext
       ? canvas.getContext("webgl2", { antialias: false })
@@ -111,22 +111,22 @@ const expression = `(() => {
     hasDeveloperSandbox: !!sandbox,
     hasTt: !!platform,
     splitGlobal: host !== globalThis,
-    adapterVersion: host.DouyinBevy && host.DouyinBevy.adapterVersion,
-    availableType: host.DouyinBevy && typeof host.DouyinBevy.available,
-    sandboxAdapterVersion: sandbox && sandbox.DouyinBevy && sandbox.DouyinBevy.adapterVersion,
-    sandboxAvailableType: sandbox && sandbox.DouyinBevy && typeof sandbox.DouyinBevy.available,
+    adapterVersion: host.BevyMiniGame && host.BevyMiniGame.adapterVersion,
+    availableType: host.BevyMiniGame && typeof host.BevyMiniGame.available,
+    sandboxAdapterVersion: sandbox && sandbox.BevyMiniGame && sandbox.BevyMiniGame.adapterVersion,
+    sandboxAvailableType: sandbox && sandbox.BevyMiniGame && typeof sandbox.BevyMiniGame.available,
     sandboxWindowInstance: sandbox && typeof sandbox.Window === "function"
       ? sandbox.Window[Symbol.hasInstance](sandbox)
       : null,
     sandboxWebGl2Instance: sandbox && typeof sandbox.WebGL2RenderingContext === "function" && webgl2
       ? sandbox.WebGL2RenderingContext[Symbol.hasInstance](webgl2)
       : null,
-    mainCanvasConstructor: sandbox && sandbox.DouyinBevy && sandbox.DouyinBevy.canvas
-      && sandbox.DouyinBevy.canvas.constructor && sandbox.DouyinBevy.canvas.constructor.name,
-    mainCanvasWidth: sandbox && sandbox.DouyinBevy && sandbox.DouyinBevy.canvas
-      && sandbox.DouyinBevy.canvas.width,
-    mainCanvasHeight: sandbox && sandbox.DouyinBevy && sandbox.DouyinBevy.canvas
-      && sandbox.DouyinBevy.canvas.height,
+    mainCanvasConstructor: sandbox && sandbox.BevyMiniGame && sandbox.BevyMiniGame.canvas
+      && sandbox.BevyMiniGame.canvas.constructor && sandbox.BevyMiniGame.canvas.constructor.name,
+    mainCanvasWidth: sandbox && sandbox.BevyMiniGame && sandbox.BevyMiniGame.canvas
+      && sandbox.BevyMiniGame.canvas.width,
+    mainCanvasHeight: sandbox && sandbox.BevyMiniGame && sandbox.BevyMiniGame.canvas
+      && sandbox.BevyMiniGame.canvas.height,
     mainCanvasWebgl2: !!mainWebgl2,
     mainCanvasWebgl2Instance: sandbox && typeof sandbox.WebGL2RenderingContext === "function" && mainWebgl2
       ? sandbox.WebGL2RenderingContext[Symbol.hasInstance](mainWebgl2)
@@ -151,8 +151,8 @@ const expression = `(() => {
       key,
       value ? [value.width, value.height] : null,
     ])),
-    gameReady: sandbox && sandbox.document && sandbox.DouyinBevy
-      ? sandbox.document.activeElement === sandbox.DouyinBevy.canvas
+    gameReady: sandbox && sandbox.document && sandbox.BevyMiniGame
+      ? sandbox.document.activeElement === sandbox.BevyMiniGame.canvas
       : null,
     sandboxQueueMicrotaskType: sandbox && typeof sandbox.queueMicrotask,
     runtimeStats: adapter && adapter.runtimeStats,

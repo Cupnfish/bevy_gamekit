@@ -857,36 +857,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bevy_douyin_minigame"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bevy",
- "bevy_douyin_wasm_split",
- "clap",
- "serde",
- "serde_json",
- "tempfile",
- "wasm-bindgen",
-]
-
-[[package]]
-name = "bevy_douyin_wasm_split"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "brotli",
- "brotli-decompressor 4.0.3",
- "clap",
- "serde",
- "serde_json",
- "tempfile",
- "wasm-bindgen",
- "wasm-split-cli",
- "wasm-splitter",
-]
-
-[[package]]
 name = "bevy_ecs"
 version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -946,8 +916,8 @@ dependencies = [
  "avian2d",
  "bevy",
  "bevy_agent_harness",
- "bevy_douyin_minigame",
- "bevy_douyin_wasm_split",
+ "bevy_minigame",
+ "bevy_minigame_wasm_split",
  "getrandom 0.4.3",
  "rand",
  "serde",
@@ -1349,6 +1319,56 @@ name = "bevy_mikktspace"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bff34eb29ff4b8a8688bc7299f14fb6b597461ca80fec03ed7d22939ab33e48f"
+
+[[package]]
+name = "bevy_minigame"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bevy",
+ "bevy_minigame_wasm_split",
+ "clap",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "bevy_minigame_douyin"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bevy_minigame",
+ "clap",
+ "serde_json",
+]
+
+[[package]]
+name = "bevy_minigame_wasm_split"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "brotli",
+ "brotli-decompressor 4.0.3",
+ "clap",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "wasm-bindgen",
+ "wasm-split-cli",
+ "wasm-splitter",
+]
+
+[[package]]
+name = "bevy_minigame_wechat"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bevy_minigame",
+ "clap",
+ "serde_json",
+]
 
 [[package]]
 name = "bevy_pbr"

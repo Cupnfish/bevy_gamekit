@@ -43,8 +43,8 @@ await new Promise((resolve) => setTimeout(resolve, 200));
 const installExpression = `(() => {
   const mode = ${JSON.stringify(mode)};
   const sandbox = globalThis.developerSandbox && globalThis.developerSandbox.global;
-  const game = sandbox && sandbox.DouyinBevy ? sandbox : globalThis;
-  const adapter = game.DouyinBevy;
+  const game = sandbox && sandbox.BevyMiniGame ? sandbox : globalThis;
+  const adapter = game.BevyMiniGame;
   if (!adapter || !adapter.canvas || typeof game.requestAnimationFrame !== "function") return null;
 
   if (typeof game.__restoreDouyinPresentationTest === "function") {
@@ -137,13 +137,13 @@ for (const context of contexts) {
   }
 }
 
-if (!installedContext) throw new Error("DouyinBevy runtime context was not found");
+if (!installedContext) throw new Error("BevyMiniGame runtime context was not found");
 
 await new Promise((resolve) => setTimeout(resolve, 750));
 const status = await call("Runtime.evaluate", {
   expression: `(() => {
     const sandbox = globalThis.developerSandbox && globalThis.developerSandbox.global;
-    const game = sandbox && sandbox.DouyinBevy ? sandbox : globalThis;
+    const game = sandbox && sandbox.BevyMiniGame ? sandbox : globalThis;
     return game.__douyinPresentationTest;
   })()`,
   contextId: installedContext.id,

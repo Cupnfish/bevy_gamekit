@@ -14,7 +14,7 @@ $WasmOpt = & "$PSScriptRoot/ensure-binaryen.ps1" -Version $BinaryenVersion
 cargo build `
     --release `
     --target wasm32-unknown-unknown `
-    -p bevy_douyin_wasm_split `
+    -p bevy_minigame_wasm_split `
     --no-default-features `
     --features decoder `
     --target-dir $DecoderTargetDirectory
@@ -37,9 +37,10 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 cargo run `
-    -p bevy_douyin_minigame `
+    -p bevy_minigame_douyin `
+    --no-default-features `
     --features cli `
-    --bin bevy-douyin `
+    --bin bevy-minigame-douyin `
     -- package `
     --wasm $TargetDirectory/wasm32-unknown-unknown/release/bevy_emoji.wasm `
     --assets emoji-merge/assets `
@@ -48,7 +49,7 @@ cargo run `
     --app-id $AppId `
     --orientation landscape `
     --exclude-extension ogg `
-    --wasm-split-decoder $DecoderTargetDirectory/wasm32-unknown-unknown/release/bevy_douyin_wasm_split.wasm `
+    --wasm-split-decoder $DecoderTargetDirectory/wasm32-unknown-unknown/release/bevy_minigame_wasm_split.wasm `
     --wasm-opt $WasmOpt `
     --compression-quality $CompressionQuality `
     --max-total-mib 30

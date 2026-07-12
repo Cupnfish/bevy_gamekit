@@ -44,22 +44,33 @@ impl Spring {
         self.target = target;
     }
 
-    /// 施加一次冲击（叠加速度），target 不变。用于「弹一下」的受击反馈。
+    /// 施加一次冲击（立刻偏移当前位置），target 不变。用于「弹一下」的受击反馈。
+    ///
+    /// 这与原版 Anchor `spring_pull` 的语义一致：输入发生的当前帧就能看到
+    /// 位移，后续帧再由弹簧积分回到 target，而不是把反馈延迟到下一次积分。
     pub fn pull(&mut self, impulse: f32) {
-        self.velocity += impulse;
+        self.current += impulse;
     }
 }
 
 /// 半隐式 Euler 积分推进所有弹簧。
 pub fn update_springs(time: Res<Time>, mut query: Query<&mut Spring>) {
-    let dt = time.delta_secs();
-    if dt <= 0.0 {
+    // 半隐式 Euler 在长帧上会变得不稳定；把偶发长帧拆成最多 60 Hz 的
+    // 小步，避免加载/调试抖动把视觉弹簧直接推进到离谱的中间姿态。
+    const MAX_STEP: f32 = 1.0 / 60.0;
+    let remaining = time.delta_secs().min(0.25);
+    if remaining <= 0.0 {
         return;
     }
     for mut s in &mut query {
-        let force = s.stiffness * (s.target - s.current) - s.damping * s.velocity;
-        s.velocity += force * dt;
-        s.current += s.velocity * dt;
+        let mut local_remaining = remaining;
+        while local_remaining > 0.0 {
+            let dt = local_remaining.min(MAX_STEP);
+            let force = s.stiffness * (s.target - s.current) - s.damping * s.velocity;
+            s.velocity += force * dt;
+            s.current += s.velocity * dt;
+            local_remaining -= dt;
+        }
     }
 }
 
@@ -95,7 +106,9 @@ pub fn update_hit_flash(
         sprite.color = FLASH_TINT.mix(&Color::WHITE, t);
         if t >= 1.0 {
             sprite.color = Color::WHITE;
-            commands.entity(entity).remove::<HitFlash>();
+            // HitFlash 的宿主可能在同一帧被另一 gameplay system 销毁；静默
+            // 忽略这种正常竞态，避免警告与堆栈格式化造成可见卡顿。
+            commands.entity(entity).try_remove::<HitFlash>();
         }
     }
 }
@@ -104,6 +117,23 @@ pub struct JuicePlugin;
 
 impl Plugin for JuicePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (update_springs, update_hit_flash));
+        app.add_systems(Update, update_hit_flash)
+            .add_systems(PostUpdate, update_springs);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pull_is_visible_immediately_like_anchor_spring_pull() {
+        let mut spring = Spring::default();
+
+        spring.pull(-0.3);
+
+        assert_eq!(spring.current, -0.3);
+        assert_eq!(spring.velocity, 0.0);
+        assert_eq!(spring.target, 0.0);
     }
 }

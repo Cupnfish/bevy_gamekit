@@ -17,8 +17,10 @@ mod pointer;
 mod scenes;
 mod web;
 
-#[cfg(all(target_arch = "wasm32", feature = "douyin", feature = "web_audio"))]
-compile_error!("Douyin builds require `--no-default-features --features douyin`");
+#[cfg(all(target_arch = "wasm32", feature = "minigame", feature = "web_audio"))]
+compile_error!("Mini Game builds require `--no-default-features --features douyin|wechat`");
+#[cfg(all(target_arch = "wasm32", feature = "douyin", feature = "wechat"))]
+compile_error!("The `douyin` and `wechat` features are mutually exclusive");
 
 use avian2d::{math::*, prelude::*};
 #[cfg(feature = "web_audio")]
@@ -38,8 +40,8 @@ use bevy_agent_harness::{
     AgentCanvasConfig, AgentHarnessConfig, AgentHarnessPlugin, AgentTarget, AgentTargetCapability,
     AgentTargetRole,
 };
-#[cfg(all(target_arch = "wasm32", feature = "douyin"))]
-use bevy_douyin_minigame::DouyinMiniGamePlugin;
+#[cfg(all(target_arch = "wasm32", feature = "minigame"))]
+use bevy_minigame::MiniGamePlugin;
 
 #[cfg(feature = "web_audio")]
 use audio::Bgm;
@@ -49,7 +51,7 @@ use game::{
     RoundEndPiece, RoundEndPieceKind, RoundEndSolidForeground, SPAWN_Y, SaveData, Shake,
     SpawnGrace, choose_spawn_value, emoji_filename, emoji_radius, save_save, spawn_emoji,
 };
-use juice::{HitFlash, JuicePlugin, Spring};
+use juice::{HitFlash, JuicePlugin, Spring, update_springs};
 use outline::{OutlinePlugin, OutlinePostProcess};
 use pointer::{CanvasViewport, PointerKind, PointerPlugin, PointerSystems, PrimaryPointer};
 
@@ -106,14 +108,14 @@ pub fn screen_y(y: f32) -> f32 {
 }
 
 fn main() {
-    #[cfg(all(target_arch = "wasm32", feature = "douyin"))]
+    #[cfg(all(target_arch = "wasm32", feature = "minigame"))]
     wasm_bindgen_futures::spawn_local(run_split_game());
 
-    #[cfg(not(all(target_arch = "wasm32", feature = "douyin")))]
+    #[cfg(not(all(target_arch = "wasm32", feature = "minigame")))]
     run_game();
 }
 
-#[cfg(all(target_arch = "wasm32", feature = "douyin"))]
+#[cfg(all(target_arch = "wasm32", feature = "minigame"))]
 #[wasm_split::wasm_split(bevy_game)]
 async fn run_split_game() {
     run_game();
@@ -139,8 +141,8 @@ fn run_game() {
             }),
     )
     .add_plugins(PhysicsPlugins::default().with_length_unit(20.0));
-    #[cfg(all(target_arch = "wasm32", feature = "douyin"))]
-    app.add_plugins(DouyinMiniGamePlugin::default());
+    #[cfg(all(target_arch = "wasm32", feature = "minigame"))]
+    app.add_plugins(MiniGamePlugin::default());
     app.add_plugins(AgentHarnessPlugin::new(AgentHarnessConfig {
         canvas: Some(AgentCanvasConfig::centered(Vec2::new(SCREEN_W, SCREEN_H))),
         enable_remote: cfg!(not(target_arch = "wasm32")),
@@ -185,7 +187,6 @@ fn run_game() {
             update_drop_state,
             reset_held_on_restart,
             update_spawner_hand,
-            apply_emoji_spring_scale,
             update_cursor,
             update_lose_line,
             shake_camera,
@@ -199,6 +200,7 @@ fn run_game() {
             audio::update_bgm,
         ),
     )
+    .add_systems(PostUpdate, apply_emoji_spring_scale.after(update_springs))
     .run();
 }
 
@@ -228,6 +230,14 @@ struct OuterCamera;
 #[derive(Component)]
 struct Spawner {
     open_for: f32,
+}
+
+/// 两种手势纹理在启动阶段一起进入 AssetServer，切换时只复用稳定句柄。
+/// 释放动画不再等待新的资源请求，也不会每帧反复写 `Sprite::image`。
+#[derive(Resource)]
+struct SpawnerImages {
+    closed: Handle<Image>,
+    open: Handle<Image>,
 }
 
 /// 手持球：浮在 spawner 顶部跟随鼠标，非物理（无 RigidBody）。
@@ -628,7 +638,11 @@ fn setup_lose_line(mut commands: Commands) {
 }
 
 /// spawner（云朵手）+ 手持球 + 自定义光标。
-fn setup_spawner(mut commands: Commands) {
+fn setup_spawner(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let spawner_images = SpawnerImages {
+        closed: asset_server.load("closed_hand.png"),
+        open: asset_server.load("open_hand.png"),
+    };
     // 云朵手：原作 closed_hand，渲染 42px，浮在 arena 顶部上方（y=160）。
     let hand_transform = Transform::from_xyz(-12.0, 160.0, 2.0);
     commands
@@ -651,6 +665,8 @@ fn setup_spawner(mut commands: Commands) {
                     AgentTargetCapability::Press,
                 ]),
         ));
+
+    commands.insert_resource(spawner_images);
 
     // 手持球：浮在 arena 顶部（y=SPAWN_Y），随鼠标 x 移动。
     let held_value = choose_spawn_value();
@@ -1384,18 +1400,24 @@ fn drop_on_click(
 fn update_spawner_hand(
     time: Res<Time>,
     state: Res<GameState>,
-    asset_server: Res<AssetServer>,
+    images: Res<SpawnerImages>,
     mut spawner: Single<(&mut Spawner, &mut Sprite)>,
 ) {
     if *state != GameState::Playing {
         return;
     }
     let (spawner, sprite) = &mut *spawner;
-    if spawner.open_for > 0.0 {
+    let should_open = spawner.open_for > 0.0;
+    if should_open {
         spawner.open_for = (spawner.open_for - time.delta_secs()).max(0.0);
-        sprite.image = asset_server.load("open_hand.png");
+    }
+    let expected = if should_open {
+        &images.open
     } else {
-        sprite.image = asset_server.load("closed_hand.png");
+        &images.closed
+    };
+    if sprite.image != *expected {
+        sprite.image = expected.clone();
     }
 }
 

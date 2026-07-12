@@ -38,7 +38,7 @@ await new Promise((resolve) => setTimeout(resolve, 200));
 
 const expression = `(() => {
   const sandbox = globalThis.developerSandbox && globalThis.developerSandbox.global;
-  const adapter = sandbox && sandbox.DouyinBevy;
+  const adapter = sandbox && sandbox.BevyMiniGame;
   const canvas = adapter && adapter.canvas;
   const gl = canvas && canvas.getContext && canvas.getContext("webgl2", { antialias: false });
   if (!gl) return { installed: false, reason: "main WebGL2 context not found" };
@@ -98,7 +98,7 @@ for (const contextId of installedContexts) {
   const result = await call("Runtime.evaluate", {
     expression: `(() => {
       const sandbox = globalThis.developerSandbox && globalThis.developerSandbox.global;
-      const adapter = sandbox && sandbox.DouyinBevy;
+      const adapter = sandbox && sandbox.BevyMiniGame;
       const gl = adapter && adapter.canvas && adapter.canvas.getContext("webgl2");
       return gl && gl.__douyinBevyTraceStats;
     })()`,

@@ -1,7 +1,7 @@
-#[cfg(all(target_arch = "wasm32", not(feature = "douyin")))]
+#[cfg(all(target_arch = "wasm32", not(feature = "minigame")))]
 use wasm_bindgen::prelude::*;
 
-#[cfg(all(target_arch = "wasm32", not(feature = "douyin")))]
+#[cfg(all(target_arch = "wasm32", not(feature = "minigame")))]
 #[wasm_bindgen(inline_js = r##"
 const SAVE_KEY = "bevy_emoji_save";
 
@@ -137,27 +137,27 @@ extern "C" {
     fn js_mark_ready();
 }
 
-#[cfg(all(target_arch = "wasm32", feature = "douyin"))]
+#[cfg(all(target_arch = "wasm32", feature = "minigame"))]
 use wasm_bindgen::prelude::*;
 
-#[cfg(all(target_arch = "wasm32", feature = "douyin"))]
+#[cfg(all(target_arch = "wasm32", feature = "minigame"))]
 #[wasm_bindgen]
 extern "C" {
-    #[wasm_bindgen(js_namespace = DouyinBevy, js_name = touchCapable)]
+    #[wasm_bindgen(js_namespace = BevyMiniGame, js_name = touchCapable)]
     fn js_touch_capable() -> bool;
-    #[wasm_bindgen(js_namespace = DouyinBevy, js_name = devicePixelRatio)]
+    #[wasm_bindgen(js_namespace = BevyMiniGame, js_name = devicePixelRatio)]
     fn js_device_pixel_ratio() -> f32;
-    #[wasm_bindgen(js_namespace = DouyinBevy, js_name = gameCanvasClientWidth)]
+    #[wasm_bindgen(js_namespace = BevyMiniGame, js_name = gameCanvasClientWidth)]
     fn js_canvas_client_width() -> f32;
-    #[wasm_bindgen(js_namespace = DouyinBevy, js_name = toggleFullscreen)]
+    #[wasm_bindgen(js_namespace = BevyMiniGame, js_name = toggleFullscreen)]
     fn js_toggle_fullscreen();
-    #[wasm_bindgen(js_namespace = DouyinBevy, js_name = exitFullscreen)]
+    #[wasm_bindgen(js_namespace = BevyMiniGame, js_name = exitFullscreen)]
     fn js_exit_fullscreen();
-    #[wasm_bindgen(js_namespace = DouyinBevy, js_name = storageGet)]
+    #[wasm_bindgen(js_namespace = BevyMiniGame, js_name = storageGet)]
     fn js_load_save(key: &str) -> String;
-    #[wasm_bindgen(js_namespace = DouyinBevy, js_name = storageSet)]
+    #[wasm_bindgen(js_namespace = BevyMiniGame, js_name = storageSet)]
     fn js_save_save(key: &str, value: &str);
-    #[wasm_bindgen(js_namespace = DouyinBevy, js_name = markGameReady)]
+    #[wasm_bindgen(js_namespace = BevyMiniGame, js_name = markGameReady)]
     fn js_mark_ready();
 }
 
@@ -194,11 +194,11 @@ pub fn exit_fullscreen() {
 
 #[cfg(target_arch = "wasm32")]
 pub fn load_save() -> String {
-    #[cfg(feature = "douyin")]
+    #[cfg(feature = "minigame")]
     {
         js_load_save("bevy_emoji_save")
     }
-    #[cfg(not(feature = "douyin"))]
+    #[cfg(not(feature = "minigame"))]
     {
         js_load_save()
     }
@@ -206,9 +206,9 @@ pub fn load_save() -> String {
 
 #[cfg(target_arch = "wasm32")]
 pub fn save_save(value: &str) {
-    #[cfg(feature = "douyin")]
+    #[cfg(feature = "minigame")]
     js_save_save("bevy_emoji_save", value);
-    #[cfg(not(feature = "douyin"))]
+    #[cfg(not(feature = "minigame"))]
     js_save_save(value);
 }
 

@@ -1,0 +1,60 @@
+require("./adapter.js");
+
+const minigameHost = typeof GameGlobal !== "undefined" ? GameGlobal : globalThis;
+const bevyMiniGame = minigameHost.BevyMiniGame;
+const runtimeRoot = __BEVY_MINIGAME_RUNTIME_ROOT__;
+
+if (!bevyMiniGame) throw new Error("BevyMiniGame adapter failed to initialize");
+if (bevyMiniGame.prepareReload) bevyMiniGame.prepareReload();
+
+function runtimePath(path) {
+  return runtimeRoot + path;
+}
+
+function startBevy() {
+  const wasmBindgen = require(__BEVY_MINIGAME_WASM_MODULE__);
+  let splitRuntime = null;
+  try {
+    splitRuntime = require(__BEVY_MINIGAME_SPLIT_MODULE__);
+  } catch (_) {
+    // A normal, unsplit package does not include the optional runtime.
+  }
+
+  if (bevyMiniGame.webAssemblyPathOnly) {
+    if (splitRuntime) {
+      splitRuntime.configure({
+        instantiate: (path, imports) => bevyMiniGame.webAssembly.instantiate(runtimePath(path), imports),
+        mainExports: () => wasmBindgen.initSync(),
+      });
+    }
+    const mainPath = runtimePath(splitRuntime ? "game_wasm_bg.wasm.br" : "game_wasm_bg.wasm");
+    return wasmBindgen({ module_or_path: mainPath });
+  }
+
+  if (!splitRuntime) {
+    return bevyMiniGame.readPackageFile(runtimePath("game_wasm_bg.wasm"))
+      .then((bytes) => wasmBindgen({ module_or_path: bytes }));
+  }
+
+  const decoder = require(__BEVY_MINIGAME_DECODER_MODULE__);
+  return Promise.all([
+    bevyMiniGame.readPackageFile(runtimePath("brotli_decoder_bg.wasm")),
+    bevyMiniGame.readPackageFile(runtimePath("game_wasm_bg.wasm.br")),
+  ]).then(([decoderBytes, compressedMain]) =>
+    decoder({ module_or_path: decoderBytes }).then(() => {
+      splitRuntime.configure({
+        readFile: (path) => bevyMiniGame.readPackageFile(runtimePath(path)),
+        decompress: (bytes) => decoder.decompress(bytes),
+        mainExports: () => wasmBindgen.initSync(),
+      });
+      return wasmBindgen({ module_or_path: decoder.decompress(compressedMain) });
+    }),
+  );
+}
+
+bevyMiniGame.loadSubpackage(__BEVY_MINIGAME_SUBPACKAGE__)
+  .then(startBevy)
+  .catch((error) => {
+    console.error("Failed to start Bevy Wasm:", error);
+    throw error;
+  });
