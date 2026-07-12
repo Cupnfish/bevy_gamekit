@@ -1086,7 +1086,11 @@ fn spawn_bgm(commands: &mut Commands, _asset_server: &AssetServer, levels: &Soun
     true
 }
 
-#[cfg(feature = "web_audio")]
+// Native: start BGM immediately at startup. WASM: defer to
+// `start_bgm_after_input` so playback begins within a user-gesture window —
+// browsers suspend the AudioContext until the user interacts, so starting at
+// Startup would never be heard.
+#[cfg(all(feature = "web_audio", not(target_arch = "wasm32")))]
 fn setup_bgm(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -1096,10 +1100,12 @@ fn setup_bgm(
     startup.started = spawn_bgm(&mut commands, &asset_server, &levels);
 }
 
-#[cfg(not(feature = "web_audio"))]
+#[cfg(not(all(feature = "web_audio", not(target_arch = "wasm32"))))]
 fn setup_bgm() {}
 
-#[cfg(all(target_arch = "wasm32", feature = "minigame"))]
+// On every WASM target (browser and Mini Game host), start BGM on the first
+// pointer press so the AudioContext is resumed inside a user gesture.
+#[cfg(target_arch = "wasm32")]
 fn start_bgm_after_input(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -1113,7 +1119,7 @@ fn start_bgm_after_input(
     startup.started = spawn_bgm(&mut commands, &asset_server, &levels);
 }
 
-#[cfg(not(all(target_arch = "wasm32", feature = "minigame")))]
+#[cfg(not(target_arch = "wasm32"))]
 fn start_bgm_after_input() {}
 
 fn mark_web_ready() {
