@@ -1,5 +1,9 @@
 # bevy_gamekit
 
+**🎮 Play the demo:** <https://cupnfish.github.io/bevy_gamekit/> — a Bevy 0.19
+recreation of [emoji-merge](https://github.com/a327ex/emoji-merge), and the test
+vehicle for the crates below.
+
 **bevy_gamekit** is a Bevy toolkit: a workspace of reusable crates for
 **building**, **testing via agents**, and **shipping Bevy games to Mini Game
 hosts**.
@@ -65,6 +69,8 @@ running.
 ## Deploy targets
 
 ### GitHub Pages
+
+**Live site:** <https://cupnfish.github.io/bevy_gamekit/>
 
 The workflow in `.github/workflows/pages.yml` builds and deploys the game on
 pushes to `main` or `master`. On its first run it enables GitHub Pages for you
