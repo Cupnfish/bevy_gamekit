@@ -88,5 +88,6 @@ reference integration.
 - `wasm-bindgen` CLI and library versions must match exactly.
 - `wasm-opt` is optional in the API but strongly recommended for Bevy. Binaryen
   feature flags used by the crate match the Wasm features emitted by this game.
-- The vendored `wasm-split-cli` alpha includes a conservative reachability fix
-  needed for large Bevy modules; see `vendor/wasm-split-cli/README.md`.
+- **Temporary vendor:** `vendor/wasm-split-cli/` carries a conservative
+  reachability fix needed to split large Bevy modules. It will be removed once
+  Dioxus ships the fix upstream; see `vendor/wasm-split-cli/README.md`.
