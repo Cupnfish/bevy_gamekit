@@ -6,7 +6,6 @@
 /dist-wechat
 
 # 构建产物 / 运行时生成
-/screenshot.png
 /agent-captures
 /bevy_emoji_save.txt
 
