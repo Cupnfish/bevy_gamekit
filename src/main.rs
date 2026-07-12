@@ -1104,7 +1104,9 @@ fn setup_bgm(
 fn setup_bgm() {}
 
 // On every WASM target (browser and Mini Game host), start BGM on the first
-// pointer press so the AudioContext is resumed inside a user gesture.
+// pointer press. Browser builds resume CPAL's already-created AudioContext from
+// the native capture listener installed in index.html; spawning an AudioPlayer
+// here alone is too late to satisfy browser autoplay policy.
 #[cfg(target_arch = "wasm32")]
 fn start_bgm_after_input(
     mut commands: Commands,

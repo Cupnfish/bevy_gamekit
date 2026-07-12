@@ -11,6 +11,111 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>emoji merge</title>
+    <script>
+      // Bevy 0.19 creates CPAL's AudioContext while the Wasm app is starting.
+      // Browsers suspend that context because startup is not a user gesture, and
+      // spawning an AudioPlayer later does not ask CPAL to resume it again.
+      // Install this before Trunk loads Wasm so every Bevy AudioContext can be
+      // resumed synchronously from the browser's native input callback.
+      (() => {
+        const state = {
+          contexts: new Set(),
+          constructors: new Map(),
+          wrappers: new WeakSet(),
+          lastResumeError: null,
+        };
+
+        Object.defineProperty(window, "__bevyEmojiAudioUnlock", {
+          configurable: true,
+          value: state,
+        });
+
+        const resumeContext = context => {
+          if (context.state === "closed") {
+            state.contexts.delete(context);
+            return;
+          }
+          if (context.state === "running") return;
+
+          try {
+            const resumed = context.resume();
+            if (resumed && resumed.catch) {
+              resumed.catch(error => {
+                // A later user gesture can retry if this browser rejects one.
+                state.lastResumeError = String(error);
+              });
+            }
+          } catch (error) {
+            state.lastResumeError = String(error);
+          }
+        };
+
+        const resumeAudio = event => {
+          if (event && !event.isTrusted) return;
+          state.lastResumeError = null;
+          for (const context of Array.from(state.contexts)) {
+            resumeContext(context);
+          }
+        };
+
+        const trackAudioContext = context => {
+          state.contexts.add(context);
+          if (navigator.userActivation && navigator.userActivation.isActive) {
+            resumeContext(context);
+          }
+          return context;
+        };
+
+        const wrapAudioContext = name => {
+          const NativeAudioContext = window[name];
+          if (typeof NativeAudioContext !== "function") return;
+          if (state.wrappers.has(NativeAudioContext)) return;
+
+          let WrappedAudioContext = state.constructors.get(NativeAudioContext);
+          if (!WrappedAudioContext) {
+            WrappedAudioContext = new Proxy(NativeAudioContext, {
+              construct(target, args, newTarget) {
+                const actualNewTarget =
+                  newTarget === WrappedAudioContext ? target : newTarget;
+                return trackAudioContext(
+                  Reflect.construct(target, args, actualNewTarget),
+                );
+              },
+            });
+            state.constructors.set(NativeAudioContext, WrappedAudioContext);
+            state.wrappers.add(WrappedAudioContext);
+          }
+
+          try {
+            window[name] = WrappedAudioContext;
+          } catch (_) {
+            try {
+              Object.defineProperty(window, name, {
+                configurable: true,
+                value: WrappedAudioContext,
+                writable: true,
+              });
+            } catch (_) {}
+          }
+        };
+
+        wrapAudioContext("AudioContext");
+        wrapAudioContext("webkitAudioContext");
+
+        for (const type of [
+          "pointerdown",
+          "touchstart",
+          "touchend",
+          "mousedown",
+          "keydown",
+        ]) {
+          document.addEventListener(type, resumeAudio, {
+            capture: true,
+            passive: true,
+          });
+        }
+      })();
+    </script>
     <link data-trunk rel="rust" data-bin="bevy_emoji" data-wasm-opt="0" />
     <link data-trunk rel="copy-dir" href="emoji-merge/assets" />
     <style>
