@@ -39,6 +39,8 @@ jobs:
           tool: trunk@0.21.14
 
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - name: Build web release
         run: trunk build --release --public-url ./

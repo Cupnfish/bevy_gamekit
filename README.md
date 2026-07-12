@@ -67,9 +67,10 @@ running.
 ### GitHub Pages
 
 The workflow in `.github/workflows/pages.yml` builds and deploys the game on
-pushes to `main` or `master`. In the repository settings, select **GitHub
-Actions** as the Pages source. The workflow fetches the pinned upstream
-`emoji-merge` assets before running the Trunk release build.
+pushes to `main` or `master`. On its first run it enables GitHub Pages for you
+(source = **GitHub Actions**), so no manual repository setup is needed. The
+workflow fetches the pinned upstream `emoji-merge` assets before running the
+Trunk release build.
 
 The in-game screen button requests browser fullscreen and landscape orientation
 when the browser allows it. Older iOS Safari versions do not expose the
