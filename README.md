@@ -34,6 +34,16 @@ See [Workspace crates](#workspace-crates) for the full inventory.
 
 ## Run locally
 
+> **Assets:** The game loads art and audio from `emoji-merge/assets`, which is
+> gitignored — it's the upstream project, kept as a separate checkout rather
+> than redistributed here. Fetch it once before running locally:
+>
+> ```sh
+> git clone https://github.com/a327ex/emoji-merge
+> ```
+>
+> (The GitHub Pages workflow fetches this automatically for deploys.)
+
 Native:
 
 ```sh
