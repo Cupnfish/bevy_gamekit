@@ -1,5 +1,6 @@
 param(
-    [string]$AppId = "testAppId",
+    [ValidatePattern('^tt[0-9a-zA-Z]+$')]
+    [string]$AppId = "tt975be1e608633d4202",
     [string]$Output = "dist-douyin/emoji",
     [int]$BinaryenVersion = 130,
     [ValidateRange(1, 11)]
@@ -48,7 +49,6 @@ cargo run `
     --project-name bevy-emoji `
     --app-id $AppId `
     --orientation landscape `
-    --exclude-extension ogg `
     --wasm-split-decoder $DecoderTargetDirectory/wasm32-unknown-unknown/release/bevy_minigame_wasm_split.wasm `
     --wasm-opt $WasmOpt `
     --compression-quality $CompressionQuality `

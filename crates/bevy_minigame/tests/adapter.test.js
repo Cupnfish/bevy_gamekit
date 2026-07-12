@@ -81,7 +81,23 @@ global.tt = {
     if (platformApiCalls.createCanvas === 1) {
       throw new TypeError("U.ProfileGlobal.getSystemNanoTime is not a function");
     }
-    const canvas = {
+    const portraitCanvasPrototype = {
+      get clientWidth() { return 360; },
+      get clientHeight() { return 800; },
+      getBoundingClientRect() {
+        return {
+          x: 0,
+          y: 0,
+          left: 0,
+          top: 0,
+          right: 360,
+          bottom: 800,
+          width: 360,
+          height: 800,
+        };
+      },
+    };
+    const canvas = Object.assign(Object.create(portraitCanvasPrototype), {
       width: 0,
       height: 0,
       getContext(type) {
@@ -94,9 +110,13 @@ global.tt = {
           },
         };
       },
-    };
+    });
+    Object.defineProperties(canvas, {
+      offsetWidth: { configurable: true, get: () => 360 },
+      offsetHeight: { configurable: true, get: () => 800 },
+    });
     Object.defineProperty(canvas, "style", {
-      value: {},
+      value: { width: "300px", height: "150px" },
       configurable: false,
       writable: false,
     });
@@ -189,8 +209,23 @@ async function main() {
   assert.equal(document, readonlyDocument);
   assert.equal(document.body.contains(adapter.canvas), true);
   assert.equal(adapter.canvas.clientWidth, 800);
+  assert.equal(adapter.canvas.clientHeight, 360);
+  assert.equal(adapter.canvas.offsetWidth, 800);
+  assert.equal(adapter.canvas.offsetHeight, 360);
+  assert.deepEqual(adapter.canvas.getBoundingClientRect(), {
+    x: 0,
+    y: 0,
+    left: 0,
+    top: 0,
+    right: 800,
+    bottom: 360,
+    width: 800,
+    height: 360,
+  });
   assert.equal(typeof adapter.canvas.style.getPropertyValue, "function");
   assert.equal(typeof adapter.canvas.style.setProperty, "function");
+  assert.equal(adapter.canvas.style.getPropertyValue("width"), "800px");
+  assert.equal(adapter.canvas.style.getPropertyValue("height"), "360px");
   adapter.canvas.style.setProperty("width", "321px");
   assert.equal(adapter.canvas.clientWidth, 321);
   adapter.canvas.style.setProperty("width", "800px");

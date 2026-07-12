@@ -31,6 +31,40 @@ let intervalCallback = null;
 let intervalDelay = 0;
 let clearedInterval = null;
 let nativeAnimationFrameCalls = 0;
+const audioContexts = [];
+function createInnerAudioContext() {
+  const context = {
+    autoplay: null,
+    loop: null,
+    src: "",
+    volume: 1,
+    playbackRate: 1,
+    playCalls: 0,
+    pauseCalls: 0,
+    stopCalls: 0,
+    destroyCalls: 0,
+    endedCallback: null,
+    errorCallback: null,
+    play() { this.playCalls += 1; },
+    pause() { this.pauseCalls += 1; },
+    stop() { this.stopCalls += 1; },
+    destroy() { this.destroyCalls += 1; },
+    onEnded(callback) { this.endedCallback = callback; },
+    offEnded(callback) {
+      if (this.endedCallback === callback) this.endedCallback = null;
+    },
+    onError(callback) { this.errorCallback = callback; },
+    offError(callback) {
+      if (this.errorCallback === callback) this.errorCallback = null;
+    },
+    emitEnded() {
+      const callback = this.endedCallback;
+      if (callback) callback();
+    },
+  };
+  audioContexts.push(context);
+  return context;
+}
 global.requestAnimationFrame = () => {
   nativeAnimationFrameCalls += 1;
   return 999;
@@ -77,6 +111,7 @@ const wx = {
   }),
   createCanvas: () => canvas,
   createImage: () => ({}),
+  createInnerAudioContext,
   getFileSystemManager: () => ({ readFile: () => {} }),
   onTouchStart: () => {},
   onTouchMove: () => {},
@@ -94,6 +129,7 @@ global.__bevyMiniGamePlatform = {
   platform: "wechat",
   displayName: "WeChat",
   apiGlobal: "wx",
+  assetRoot: "bevy/assets",
   webAssemblyPathOnly: true,
   profileClockRetry: true,
   maxCanvasWidth: 1280,
@@ -101,6 +137,7 @@ global.__bevyMiniGamePlatform = {
 };
 
 const adapter = require(path.join(__dirname, "../runtime/adapter.js"));
+assert.equal(adapter.adapterVersion, 43);
 const adaptedGl = adapter.canvas.getContext("webgl2");
 const program = {};
 const vertex = {};
@@ -157,7 +194,52 @@ assert.equal(adapter.debugStats().animationFrameCancellations, 1);
 assert.equal(adapter.debugStats().maxQueuedAnimationFrames, 1);
 adapter.setPreferredFramesPerSecond(30);
 assert.equal(preferredFps, 30);
+
+const bgmId = adapter.audioCreate("Recettear OST - Closed Shop.ogg", true);
+const bgm = audioContexts[0];
+assert.ok(bgmId > 0);
+assert.equal(bgm.autoplay, false);
+assert.equal(bgm.loop, true);
+assert.equal(bgm.src, "bevy/assets/Recettear OST - Closed Shop.ogg");
+adapter.audioSetVolume(bgmId, 1.5);
+adapter.audioSetPlaybackRate(bgmId, 0.25);
+assert.equal(bgm.volume, 1);
+assert.equal(bgm.playbackRate, 0.5);
+adapter.audioPlay(bgmId);
+adapter.audioPause(bgmId);
+adapter.audioStop(bgmId);
+assert.equal(bgm.playCalls, 1);
+assert.equal(bgm.pauseCalls, 1);
+assert.equal(bgm.stopCalls, 1);
+adapter.audioDestroy(bgmId);
+assert.equal(bgm.stopCalls, 2);
+assert.equal(bgm.destroyCalls, 1);
+
+adapter.audioPlayOneShot("パパッ.ogg", 0.3, 1.05);
+const oneShot = audioContexts[1];
+assert.equal(oneShot.loop, false);
+assert.equal(oneShot.src, "bevy/assets/パパッ.ogg");
+assert.equal(oneShot.volume, 0.3);
+assert.equal(oneShot.playbackRate, 1.05);
+assert.equal(oneShot.playCalls, 1);
+assert.equal(typeof oneShot.endedCallback, "function");
+assert.equal(typeof oneShot.errorCallback, "function");
+oneShot.emitEnded();
+assert.equal(oneShot.stopCalls, 1);
+assert.equal(oneShot.destroyCalls, 1);
+assert.equal(oneShot.endedCallback, null);
+assert.equal(oneShot.errorCallback, null);
+
+const reloadedBgmId = adapter.audioCreate("Recettear OST - Closed Shop.ogg", true);
+assert.ok(reloadedBgmId > bgmId);
+const audioStats = adapter.debugStats();
+assert.equal(audioStats.adapterVersion, 43);
+assert.equal(audioStats.audioContextsCreated, 3);
+assert.equal(audioStats.audioContextsDestroyed, 2);
+assert.equal(audioStats.audioOneShots, 1);
 adapter.disposeAdapter();
 assert.equal(clearedInterval, 77);
+assert.equal(audioContexts[2].destroyCalls, 1);
+assert.equal(adapter.debugStats().audioContextsDestroyed, 3);
 
-console.log("WeChat adapter compatibility and bounded RAF scheduler passed");
+console.log("WeChat adapter compatibility, audio bridge, and bounded RAF scheduler passed");

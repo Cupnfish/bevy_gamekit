@@ -58,7 +58,6 @@ cargo run `
     --project-name bevy-emoji `
     --app-id $AppId `
     --orientation landscape `
-    --exclude-extension ogg `
     --wasm-split-decoder $DecoderTargetDirectory/wasm32-unknown-unknown/release/bevy_minigame_wasm_split.wasm `
     --wasm-opt $WasmOpt `
     --compression-quality $CompressionQuality `

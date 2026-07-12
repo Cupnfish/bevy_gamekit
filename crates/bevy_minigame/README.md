@@ -28,8 +28,9 @@ app.add_plugins(bevy_douyin_minigame::DouyinMiniGamePlugin::default());
 ```
 
 Use `#bevy-canvas` as the primary Bevy canvas selector and `assets` as the
-Wasm asset root. The generated adapter creates the visible Douyin canvas before
-Bevy starts and exposes it through that selector.
+default Wasm asset root. The generated adapter creates the visible Douyin canvas
+before Bevy starts and exposes it through that selector. Platforms that place
+assets in a runtime subpackage publish the effective root in `assetRoot`.
 
 ## Package
 
@@ -71,9 +72,10 @@ format.
   with the required `no-modules` output. Gate browser-only bindings out of the
   Douyin feature and bind platform methods through the global `DouyinBevy`
   namespace instead.
-- Browser WebAudio is not compatible with `tt.createInnerAudioContext()`.
-  Disable Bevy's audio feature for this target or provide a separate platform
-  audio implementation.
+- Browser WebAudio is not available in Mini Game hosts. Browser builds can keep
+  Bevy's normal `AudioPlayer` backend; Mini Game game-side WASM bindings should
+  use the adapter's `audioCreate`, playback controls, and managed one-shot
+  helpers backed by `createInnerAudioContext()` instead.
 - The adapter is tested with a Node mock, but WebGL behavior and package limits
   must be verified in the official Douyin Developer Tool and on a device.
 - Split builds decompress the optimized main Wasm synchronously before Bevy

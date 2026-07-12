@@ -67,10 +67,13 @@ the same package format:
 .\scripts\build-douyin.ps1 -CompressionQuality 5
 ```
 
-This target is currently silent because browser WebAudio is not available in
-the Mini Game runtime; the build script also excludes `.ogg` files. The main
-module is decompressed before Bevy starts, so startup latency and peak memory
-must be measured with the Developer Tool's real-device debugger before release.
+Browser builds use Bevy's built-in `AudioPlayer` WebAudio backend. Mini Game
+builds use the shared adapter's `createInnerAudioContext()` bridge, because
+those hosts do not expose browser WebAudio. Both Mini Game build scripts copy
+the `.ogg` music and sound effects into the generated asset root (the WeChat
+runtime subpackage uses `bevy/assets`). The main module is decompressed before
+Bevy starts, so startup latency and peak memory must still be measured with the
+Developer Tool's real-device debugger before release.
 
 See `crates/bevy_douyin_minigame/README.md` for platform integration and
 `crates/bevy_douyin_wasm_split/README.md` for the reusable splitter crate.

@@ -157,6 +157,22 @@ extern "C" {
     fn js_load_save(key: &str) -> String;
     #[wasm_bindgen(js_namespace = BevyMiniGame, js_name = storageSet)]
     fn js_save_save(key: &str, value: &str);
+    #[wasm_bindgen(js_namespace = BevyMiniGame, js_name = audioCreate)]
+    fn js_audio_create(file: &str, looped: bool) -> u32;
+    #[wasm_bindgen(js_namespace = BevyMiniGame, js_name = audioSetVolume)]
+    fn js_audio_set_volume(id: u32, volume: f32);
+    #[wasm_bindgen(js_namespace = BevyMiniGame, js_name = audioSetPlaybackRate)]
+    fn js_audio_set_playback_rate(id: u32, rate: f32);
+    #[wasm_bindgen(js_namespace = BevyMiniGame, js_name = audioPlay)]
+    fn js_audio_play(id: u32);
+    #[wasm_bindgen(js_namespace = BevyMiniGame, js_name = audioPause)]
+    fn js_audio_pause(id: u32);
+    #[wasm_bindgen(js_namespace = BevyMiniGame, js_name = audioStop)]
+    fn js_audio_stop(id: u32);
+    #[wasm_bindgen(js_namespace = BevyMiniGame, js_name = audioDestroy)]
+    fn js_audio_destroy(id: u32);
+    #[wasm_bindgen(js_namespace = BevyMiniGame, js_name = audioPlayOneShot)]
+    fn js_audio_play_one_shot(file: &str, volume: f32, rate: f32);
     #[wasm_bindgen(js_namespace = BevyMiniGame, js_name = markGameReady)]
     fn js_mark_ready();
 }
@@ -210,6 +226,46 @@ pub fn save_save(value: &str) {
     js_save_save("bevy_emoji_save", value);
     #[cfg(not(feature = "minigame"))]
     js_save_save(value);
+}
+
+#[cfg(all(target_arch = "wasm32", feature = "minigame"))]
+pub fn audio_create(file: &str, looped: bool) -> u32 {
+    js_audio_create(file, looped)
+}
+
+#[cfg(all(target_arch = "wasm32", feature = "minigame"))]
+pub fn audio_set_volume(id: u32, volume: f32) {
+    js_audio_set_volume(id, volume);
+}
+
+#[cfg(all(target_arch = "wasm32", feature = "minigame"))]
+pub fn audio_set_playback_rate(id: u32, rate: f32) {
+    js_audio_set_playback_rate(id, rate);
+}
+
+#[cfg(all(target_arch = "wasm32", feature = "minigame"))]
+pub fn audio_play(id: u32) {
+    js_audio_play(id);
+}
+
+#[cfg(all(target_arch = "wasm32", feature = "minigame"))]
+pub fn audio_pause(id: u32) {
+    js_audio_pause(id);
+}
+
+#[cfg(all(target_arch = "wasm32", feature = "minigame"))]
+pub fn audio_stop(id: u32) {
+    js_audio_stop(id);
+}
+
+#[cfg(all(target_arch = "wasm32", feature = "minigame"))]
+pub fn audio_destroy(id: u32) {
+    js_audio_destroy(id);
+}
+
+#[cfg(all(target_arch = "wasm32", feature = "minigame"))]
+pub fn audio_play_one_shot(file: &str, volume: f32, rate: f32) {
+    js_audio_play_one_shot(file, volume, rate);
 }
 
 pub fn mark_ready() {

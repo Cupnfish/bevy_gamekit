@@ -16,16 +16,33 @@
 use bevy::audio::{AudioPlayer, AudioSink, AudioSinkPlayback, PlaybackSettings, Volume};
 use bevy::prelude::*;
 
-#[cfg(feature = "web_audio")]
+#[cfg(any(
+    feature = "web_audio",
+    all(target_arch = "wasm32", feature = "minigame")
+))]
 use crate::game::GameState;
 
 /// 原版 `level_to_volume = {0, 0.0625, 0.125, 0.25, 0.5}`（线性，等级 0..=4）。
-#[cfg(feature = "web_audio")]
+#[cfg(any(
+    feature = "web_audio",
+    all(target_arch = "wasm32", feature = "minigame")
+))]
 pub const LEVEL_TO_VOLUME: [f32; 5] = [0.0, 0.0625, 0.125, 0.25, 0.5];
 
 /// 原版 BGM `music_player_play_song(closed_shop, 0.375)` 的 base 音量。
-#[cfg(feature = "web_audio")]
+#[cfg(any(
+    feature = "web_audio",
+    all(target_arch = "wasm32", feature = "minigame")
+))]
 const BGM_VOLUME: f32 = 0.375;
+
+#[cfg(any(
+    feature = "web_audio",
+    all(target_arch = "wasm32", feature = "minigame")
+))]
+pub fn bgm_volume(levels: &SoundLevels) -> f32 {
+    BGM_VOLUME * levels.music_volume()
+}
 
 /// sfx/music 音量等级（原作 sfx_sound_level/music_sound_level，0..=4，持久化）。
 #[derive(Resource, Clone, Copy)]
@@ -36,13 +53,19 @@ pub struct SoundLevels {
 
 impl SoundLevels {
     /// sfx tag 的线性音量（原作 `sfx.volume = level_to_volume[level+1]`）。
-    #[cfg(feature = "web_audio")]
+    #[cfg(any(
+        feature = "web_audio",
+        all(target_arch = "wasm32", feature = "minigame")
+    ))]
     pub fn sfx_volume(self) -> f32 {
         LEVEL_TO_VOLUME[self.sfx.min(4) as usize]
     }
 
     /// music tag 的线性音量。
-    #[cfg(feature = "web_audio")]
+    #[cfg(any(
+        feature = "web_audio",
+        all(target_arch = "wasm32", feature = "minigame")
+    ))]
     pub fn music_volume(self) -> f32 {
         LEVEL_TO_VOLUME[self.music.min(4) as usize]
     }
@@ -66,7 +89,10 @@ pub enum GameSound {
     DeathHit,           // se_22         base 0.5  pitched  (808)
 }
 
-#[cfg(feature = "web_audio")]
+#[cfg(any(
+    feature = "web_audio",
+    all(target_arch = "wasm32", feature = "minigame")
+))]
 struct Def {
     file: &'static str,
     base: f32,
@@ -74,7 +100,10 @@ struct Def {
 }
 
 impl GameSound {
-    #[cfg(feature = "web_audio")]
+    #[cfg(any(
+        feature = "web_audio",
+        all(target_arch = "wasm32", feature = "minigame")
+    ))]
     const fn def(self) -> Def {
         match self {
             GameSound::Drop => Def {
@@ -156,10 +185,23 @@ pub fn play_sfx(
     sound: GameSound,
     base_override: Option<f32>,
 ) {
-    #[cfg(not(feature = "web_audio"))]
+    #[cfg(all(not(feature = "web_audio"), not(target_arch = "wasm32")))]
     {
         let _ = (commands, asset_server, levels, sound, base_override);
         return;
+    }
+    #[cfg(all(target_arch = "wasm32", feature = "minigame"))]
+    {
+        let def = sound.def();
+        let base = base_override.unwrap_or(def.base);
+        let vol = base * levels.sfx_volume();
+        let pitch = if def.pitched {
+            0.95 + rand::random::<f32>() * 0.1
+        } else {
+            1.0
+        };
+        crate::web::audio_play_one_shot(def.file, vol, pitch);
+        let _ = (commands, asset_server);
     }
     #[cfg(feature = "web_audio")]
     {
@@ -184,6 +226,23 @@ pub fn play_sfx(
 #[derive(Component)]
 #[cfg(feature = "web_audio")]
 pub struct Bgm;
+
+/// WASM audio handle owned by the browser/mini-game host rather than Bevy's
+/// native `rodio` output.
+#[derive(Component)]
+#[cfg(all(target_arch = "wasm32", feature = "minigame"))]
+pub struct WasmBgm(pub u32);
+
+#[cfg(all(target_arch = "wasm32", feature = "minigame"))]
+impl Drop for WasmBgm {
+    fn drop(&mut self) {
+        if self.0 != 0 {
+            crate::web::audio_stop(self.0);
+            crate::web::audio_destroy(self.0);
+            self.0 = 0;
+        }
+    }
+}
 
 /// `update_bgm` 对 BGM sink 执行的动作（供 `AudioProbe` 经 BRP 反射读取做断言）。
 #[derive(Reflect, Default, Clone, Copy, PartialEq, Eq, Debug)]
@@ -250,5 +309,43 @@ pub fn update_bgm(
     }
 }
 
-#[cfg(not(feature = "web_audio"))]
+#[cfg(all(target_arch = "wasm32", feature = "minigame"))]
+pub fn update_bgm(
+    bgm_players: Query<&WasmBgm>,
+    state: Res<GameState>,
+    levels: Res<SoundLevels>,
+    mut probe: ResMut<AudioProbe>,
+    mut prev: Local<Option<GameState>>,
+    mut prev_volume: Local<Option<f32>>,
+) {
+    let Ok(player) = bgm_players.single() else {
+        probe.sink_present = false;
+        return;
+    };
+    let vol = bgm_volume(&levels);
+    probe.sink_present = player.0 != 0;
+    probe.volume = vol;
+    if *prev_volume != Some(vol) {
+        crate::web::audio_set_volume(player.0, vol);
+        *prev_volume = Some(vol);
+    }
+
+    let curr = *state;
+    if *prev != Some(curr) {
+        match curr {
+            GameState::GameOver => {
+                crate::web::audio_pause(player.0);
+                probe.last_action = BgmCtl::Paused;
+            }
+            GameState::Playing => {
+                crate::web::audio_play(player.0);
+                probe.last_action = BgmCtl::Playing;
+            }
+        }
+        probe.transitions += 1;
+        *prev = Some(curr);
+    }
+}
+
+#[cfg(all(not(feature = "web_audio"), not(target_arch = "wasm32")))]
 pub fn update_bgm() {}

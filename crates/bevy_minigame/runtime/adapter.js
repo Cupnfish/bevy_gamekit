@@ -2,7 +2,7 @@
   "use strict";
 
   const previousAdapter = global.BevyMiniGame;
-  const adapterVersion = 41;
+  const adapterVersion = 43;
   const host = hostGlobal || global;
   const platformConfig = global.__bevyMiniGamePlatform || host.__bevyMiniGamePlatform || {};
   const platformName = String(platformConfig.platform || "minigame");
@@ -13,6 +13,7 @@
   const profileClockRetry = platformConfig.profileClockRetry === true;
   const maxCanvasWidth = Math.max(0, Number(platformConfig.maxCanvasWidth) || 0);
   const maxCanvasHeight = Math.max(0, Number(platformConfig.maxCanvasHeight) || 0);
+  const assetRoot = String(platformConfig.assetRoot || "assets").replace(/\/+$/, "");
   const platformApi = global[platformApiName] || host[platformApiName];
   let performanceAuditStopped = false;
   if (!platformApi) {
@@ -79,6 +80,8 @@
   }
   const lifecycleEvents = [];
   const storageFallback = new Map();
+  const miniGameAudioPlayers = new Map();
+  let nextMiniGameAudioPlayer = 1;
   const webglContexts = new WeakSet();
   const instrumentedWebglContexts = new WeakSet();
   const decoratedCanvases = new WeakSet();
@@ -102,6 +105,9 @@
     animationFrameCallbacks: 0,
     animationFrameCancellations: 0,
     maxQueuedAnimationFrames: 0,
+    audioContextsCreated: 0,
+    audioContextsDestroyed: 0,
+    audioOneShots: 0,
     webgl: Object.create(null),
   };
 
@@ -144,6 +150,104 @@
       if (!profileClockRetry || description.indexOf("getSystemNanoTime") < 0) throw error;
       return implementation.apply(platformApi, parameters);
     }
+  }
+
+  function audioAssetPath(file) {
+    return assetRoot + "/" + String(file);
+  }
+
+  function audioEntry(id) {
+    return miniGameAudioPlayers.get(Number(id));
+  }
+
+  function audioSetProperty(entry, name, value) {
+    if (!entry || !entry.context) return;
+    try { entry.context[name] = value; } catch (_) {}
+  }
+
+  function audioCreate(file, looped) {
+    let context;
+    try { context = callPlatformApi("createInnerAudioContext"); } catch (_) { return 0; }
+    if (!context) return 0;
+    const id = nextMiniGameAudioPlayer++;
+    const entry = { context, ended: null, error: null };
+    audioSetProperty(entry, "autoplay", false);
+    audioSetProperty(entry, "loop", looped === true);
+    audioSetProperty(entry, "src", audioAssetPath(file));
+    miniGameAudioPlayers.set(id, entry);
+    debugCounters.audioContextsCreated += 1;
+    return id;
+  }
+
+  function audioSetVolume(id, volume) {
+    const entry = audioEntry(id);
+    audioSetProperty(entry, "volume", Math.max(0, Math.min(1, Number(volume) || 0)));
+  }
+
+  function audioSetPlaybackRate(id, rate) {
+    const entry = audioEntry(id);
+    audioSetProperty(entry, "playbackRate", Math.max(0.5, Math.min(2, Number(rate) || 1)));
+  }
+
+  function audioPlay(id) {
+    const entry = audioEntry(id);
+    if (!entry || !entry.context || typeof entry.context.play !== "function") return;
+    try { entry.context.play(); } catch (_) {}
+  }
+
+  function audioPause(id) {
+    const entry = audioEntry(id);
+    if (!entry || !entry.context || typeof entry.context.pause !== "function") return;
+    try { entry.context.pause(); } catch (_) {}
+  }
+
+  function audioStop(id) {
+    const entry = audioEntry(id);
+    if (!entry || !entry.context || typeof entry.context.stop !== "function") return;
+    try { entry.context.stop(); } catch (_) {}
+  }
+
+  function audioDestroy(id) {
+    const numericId = Number(id);
+    const entry = miniGameAudioPlayers.get(numericId);
+    if (!entry) return;
+    miniGameAudioPlayers.delete(numericId);
+    if (entry.ended && typeof entry.context.offEnded === "function") {
+      try { entry.context.offEnded(entry.ended); } catch (_) {}
+    }
+    if (entry.error && typeof entry.context.offError === "function") {
+      try { entry.context.offError(entry.error); } catch (_) {}
+    }
+    try {
+      if (typeof entry.context.stop === "function") entry.context.stop();
+    } catch (_) {}
+    try {
+      if (typeof entry.context.destroy === "function") entry.context.destroy();
+    } catch (_) {}
+    debugCounters.audioContextsDestroyed += 1;
+  }
+
+  function audioPlayOneShot(file, volume, rate) {
+    const id = audioCreate(file, false);
+    if (!id) return;
+    const entry = audioEntry(id);
+    audioSetVolume(id, volume);
+    audioSetPlaybackRate(id, rate);
+    const cleanup = () => audioDestroy(id);
+    entry.ended = cleanup;
+    entry.error = cleanup;
+    try {
+      if (typeof entry.context.onEnded === "function") entry.context.onEnded(cleanup);
+      if (typeof entry.context.onError === "function") entry.context.onError(cleanup);
+      if (typeof entry.context.play === "function") entry.context.play();
+    } catch (_) {
+      cleanup();
+    }
+    debugCounters.audioOneShots += 1;
+  }
+
+  function disposeMiniGameAudio() {
+    for (const id of Array.from(miniGameAudioPlayers.keys())) audioDestroy(id);
   }
 
   function readSystemInfo() {
@@ -261,6 +365,9 @@
       animationFrameCallbacks: debugCounters.animationFrameCallbacks,
       animationFrameCancellations: debugCounters.animationFrameCancellations,
       maxQueuedAnimationFrames: debugCounters.maxQueuedAnimationFrames,
+      audioContextsCreated: debugCounters.audioContextsCreated,
+      audioContextsDestroyed: debugCounters.audioContextsDestroyed,
+      audioOneShots: debugCounters.audioOneShots,
       webgl,
     };
   }
@@ -314,6 +421,15 @@
       // properties (for example `tagName`). A native null/undefined value is
       // still preferable to aborting the entire adapter during decoration.
       return undefined;
+    }
+  }
+
+  function definePropertyValue(target, name, descriptor) {
+    try {
+      Object.defineProperty(target, name, descriptor);
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -1153,9 +1269,56 @@
     return canvas;
   }
 
+  function installDouyinMainCanvasViewport(canvas) {
+    if (!douyinWorkarounds) return;
+
+    // Krypton's landscape canvas keeps browser-like size getters in the
+    // device's portrait orientation (for example 393x873 for an 873x393
+    // window). winit trusts getBoundingClientRect through ResizeObserver and
+    // would consequently reconfigure wgpu to a portrait 1081x2401 surface.
+    // Keep the native backing-size setters, but make every CSS/layout read use
+    // the Mini Game window's landscape logical dimensions.
+    const style = installCanvasStyle(canvas);
+    for (const [name, value] of [
+      ["width", logicalWidth + "px"],
+      ["height", logicalHeight + "px"],
+    ]) {
+      if (typeof style.setProperty === "function") style.setProperty(name, value);
+      else style[toCamel(name)] = value;
+    }
+
+    const viewportRect = function getBoundingClientRect() {
+      const currentStyle = installCanvasStyle(canvas);
+      const width = cssPixels(stylePropertyValue(currentStyle, "width"), logicalWidth);
+      const height = cssPixels(stylePropertyValue(currentStyle, "height"), logicalHeight);
+      return { x: 0, y: 0, left: 0, top: 0, right: width, bottom: height, width, height };
+    };
+    if (!definePropertyValue(canvas, "getBoundingClientRect", {
+      configurable: true,
+      writable: true,
+      value: viewportRect,
+    })) {
+      setValue(canvas, "getBoundingClientRect", viewportRect);
+    }
+    for (const name of ["clientWidth", "clientHeight", "offsetWidth", "offsetHeight"]) {
+      const dimension = name.endsWith("Width") ? "width" : "height";
+      definePropertyValue(canvas, name, {
+        configurable: true,
+        get: () => viewportRect()[dimension],
+      });
+    }
+  }
+
   const mainCanvas = decorateCanvas(createPlatformCanvas(), "bevy-canvas");
   mainCanvas.width = Math.max(1, Math.round(logicalWidth * pixelRatio));
   mainCanvas.height = Math.max(1, Math.round(logicalHeight * pixelRatio));
+  installDouyinMainCanvasViewport(mainCanvas);
+  if (douyinWorkarounds && global.console && typeof global.console.info === "function") {
+    global.console.info(
+      "[BevyMiniGame] canvas viewport " + logicalWidth + "x" + logicalHeight
+        + " backing " + mainCanvas.width + "x" + mainCanvas.height,
+    );
+  }
   let devtoolsMirror = null;
   if (douyinWorkarounds && mainCanvas._canvas && mainCanvas._canvas.ownerDocument) {
     // Helium DevTools does not composite wgpu's WebGL surface. Mirror it into
@@ -1771,6 +1934,7 @@
       try { documentRef.__listeners.clear(); } catch (_) {}
       try { mainCanvas.__listeners.clear(); } catch (_) {}
       if (animationFrameScheduler) animationFrameScheduler.clearCallbacks();
+      disposeMiniGameAudio();
     }
     gameGeneration += 1;
   }
@@ -1778,6 +1942,7 @@
   function disposeAdapter() {
     prepareReload();
     if (animationFrameScheduler) animationFrameScheduler.dispose();
+    disposeMiniGameAudio();
     try {
       if (devtoolsMirror && devtoolsMirror.canvas) devtoolsMirror.canvas.remove();
     } catch (_) {}
@@ -1815,6 +1980,14 @@
     toggleFullscreen: () => {},
     exitFullscreen: () => {},
     markGameReady: () => mainCanvas.focus(),
+    audioCreate,
+    audioSetVolume,
+    audioSetPlaybackRate,
+    audioPlay,
+    audioPause,
+    audioStop,
+    audioDestroy,
+    audioPlayOneShot,
     setPreferredFramesPerSecond(fps) {
       const clamped = Math.max(1, Math.min(60, Number(fps) || 60));
       if (animationFrameScheduler) {

@@ -18,6 +18,13 @@ const DEFAULT_PRESERVED_PROJECT_FILES: [&str; 3] = [
     "project.private.config.json",
     "icon.png",
 ];
+const GENERATED_PROJECT_CONFIG_KEYS: [&str; 5] = [
+    "appid",
+    "projectname",
+    "description",
+    "compileType",
+    "douyinProjectType",
+];
 const GENERATED_ROOT_FILES: [&str; 7] = [
     "__wasm_split.js",
     "brotli_decoder.js",
@@ -64,6 +71,13 @@ pub trait MiniGamePlatform {
 
     /// Places the generated Wasm runtime under this Mini Game subpackage root.
     fn runtime_subpackage(&self) -> Option<&'static str> {
+        None
+    }
+
+    /// Places copied game assets under this Mini Game subpackage root. This is
+    /// separate from `runtime_subpackage` because some hosts keep the runtime
+    /// and assets in different package locations.
+    fn asset_subpackage(&self) -> Option<&'static str> {
         None
     }
 
@@ -202,6 +216,7 @@ fn package_to(
 
     if let Some(assets) = &options.assets {
         copy_tree(assets, &staging.join("assets"), &options.exclude_extensions)?;
+        arrange_asset_files(platform, staging)?;
     }
     preserve_project_shell(platform, &options.output, staging)?;
 
@@ -243,6 +258,10 @@ fn preserve_project_shell(
     for file_name in platform.preserved_project_files() {
         let source = existing.join(file_name);
         if source.is_file() {
+            if *file_name == "project.config.json" {
+                merge_project_config(&source, &staging.join(file_name))?;
+                continue;
+            }
             fs::copy(&source, staging.join(file_name)).with_context(|| {
                 format!(
                     "failed to preserve official project file {}",
@@ -252,6 +271,59 @@ fn preserve_project_shell(
         }
     }
     Ok(())
+}
+
+fn merge_project_config(existing: &Path, generated: &Path) -> Result<()> {
+    let Ok(existing_bytes) = fs::read(existing) else {
+        return Ok(());
+    };
+    let Ok(mut existing_config) = serde_json::from_slice::<serde_json::Value>(&existing_bytes)
+    else {
+        // A malformed developer-tool file must not replace the valid generated
+        // configuration or silently restore a stale AppId.
+        return Ok(());
+    };
+    let generated_bytes = fs::read(generated).with_context(|| {
+        format!(
+            "failed to read generated project configuration {}",
+            generated.display()
+        )
+    })?;
+    let generated_config = serde_json::from_slice::<serde_json::Value>(&generated_bytes)
+        .with_context(|| {
+            format!(
+                "failed to parse generated project configuration {}",
+                generated.display()
+            )
+        })?;
+
+    if let Some(object) = existing_config.as_object_mut() {
+        // These fields select the account and platform. Clear every known
+        // generated variant first so a project previously opened by another
+        // Mini Game tool cannot leak (for example) a WeChat `compileType` into
+        // a Douyin package.
+        for key in GENERATED_PROJECT_CONFIG_KEYS {
+            object.remove(key);
+        }
+    }
+    merge_json(&mut existing_config, generated_config);
+    write_json(generated, &existing_config)
+}
+
+fn merge_json(destination: &mut serde_json::Value, source: serde_json::Value) {
+    match (destination, source) {
+        (serde_json::Value::Object(destination), serde_json::Value::Object(source)) => {
+            for (key, value) in source {
+                match destination.get_mut(&key) {
+                    Some(existing) => merge_json(existing, value),
+                    None => {
+                        destination.insert(key, value);
+                    }
+                }
+            }
+        }
+        (destination, source) => *destination = source,
+    }
 }
 
 fn replace_output(staging: &Path, output: &Path) -> Result<()> {
@@ -531,6 +603,39 @@ fn runtime_subpackage_root(platform: &dyn MiniGamePlatform) -> Result<Option<&'s
     Ok(Some(root))
 }
 
+fn asset_subpackage_root(platform: &dyn MiniGamePlatform) -> Result<Option<&'static str>> {
+    let Some(root) = platform.asset_subpackage() else {
+        return Ok(None);
+    };
+    let mut components = Path::new(root).components();
+    if root.is_empty()
+        || !matches!(components.next(), Some(Component::Normal(_)))
+        || components.next().is_some()
+    {
+        bail!("asset subpackage root must be one safe path component: {root}");
+    }
+    Ok(Some(root))
+}
+
+fn arrange_asset_files(platform: &dyn MiniGamePlatform, staging: &Path) -> Result<()> {
+    let Some(root) = asset_subpackage_root(platform)? else {
+        return Ok(());
+    };
+    let source = staging.join("assets");
+    if !source.is_dir() {
+        return Ok(());
+    }
+    let destination_root = staging.join(root);
+    fs::create_dir_all(&destination_root)?;
+    fs::rename(&source, destination_root.join("assets")).with_context(|| {
+        format!(
+            "failed to move asset directory {} into subpackage {root}",
+            source.display()
+        )
+    })?;
+    Ok(())
+}
+
 fn arrange_runtime_files(platform: &dyn MiniGamePlatform, staging: &Path) -> Result<()> {
     let Some(root) = runtime_subpackage_root(platform)? else {
         return Ok(());
@@ -594,6 +699,9 @@ fn render_game(platform: &dyn MiniGamePlatform) -> Result<String> {
 fn render_adapter(platform: &dyn MiniGamePlatform) -> Result<String> {
     let (max_canvas_width, max_canvas_height) =
         platform.max_render_resolution().unwrap_or_default();
+    let asset_root = asset_subpackage_root(platform)?
+        .map(|root| format!("{root}/assets"))
+        .unwrap_or_else(|| "assets".to_string());
     let config = serde_json::to_string(&serde_json::json!({
         "platform": platform.id(),
         "displayName": platform.display_name(),
@@ -603,6 +711,7 @@ fn render_adapter(platform: &dyn MiniGamePlatform) -> Result<String> {
         "profileClockRetry": platform.profile_clock_retry(),
         "maxCanvasWidth": max_canvas_width,
         "maxCanvasHeight": max_canvas_height,
+        "assetRoot": asset_root,
     }))?;
     Ok(format!(
         "(function installBevyMiniGamePlatform(config, global, host) {{\n  global.__bevyMiniGamePlatform = config;\n  if (host !== global) host.__bevyMiniGamePlatform = config;\n}})({config}, typeof globalThis !== 'undefined' ? globalThis : (typeof GameGlobal !== 'undefined' ? GameGlobal : this), typeof GameGlobal !== 'undefined' ? GameGlobal : (typeof globalThis !== 'undefined' ? globalThis : this));\n{ADAPTER_JS}"
@@ -672,9 +781,16 @@ fn build_report(
         })
         .map(|file| file.bytes)
         .sum();
+    let asset_root =
+        asset_subpackage_root(platform)?.map(|root| PathBuf::from(root).join("assets"));
     let asset_bytes = files
         .iter()
-        .filter(|file| file.path.starts_with("assets"))
+        .filter(|file| {
+            file.path.starts_with("assets")
+                || asset_root
+                    .as_ref()
+                    .is_some_and(|root| file.path.starts_with(root))
+        })
         .map(|file| file.bytes)
         .sum();
     let total_bytes: u64 = files.iter().map(|file| file.bytes).sum();
@@ -784,6 +900,10 @@ mod tests {
             Some("bevy")
         }
 
+        fn asset_subpackage(&self) -> Option<&'static str> {
+            Some("bevy")
+        }
+
         fn project_config(&self, _options: &PackageOptions) -> serde_json::Value {
             serde_json::json!({})
         }
@@ -800,6 +920,21 @@ mod tests {
 
         assert_eq!(
             fs::read(destination.path().join("assets/nested/test.bin")).unwrap(),
+            [1, 2, 3]
+        );
+    }
+
+    #[test]
+    fn assets_can_be_moved_into_the_runtime_subpackage() {
+        let staging = tempfile::tempdir().unwrap();
+        fs::create_dir_all(staging.path().join("assets/shaders")).unwrap();
+        fs::write(staging.path().join("assets/shaders/test.wgsl"), [1, 2, 3]).unwrap();
+
+        arrange_asset_files(&SubpackagePlatform, staging.path()).unwrap();
+
+        assert!(!staging.path().join("assets").exists());
+        assert_eq!(
+            fs::read(staging.path().join("bevy/assets/shaders/test.wgsl")).unwrap(),
             [1, 2, 3]
         );
     }
@@ -930,23 +1065,74 @@ mod tests {
     }
 
     #[test]
-    fn preserve_project_shell_keeps_tool_owned_config_and_icon() {
+    fn preserve_project_shell_keeps_tool_settings_but_generated_identity_wins() {
         let existing = tempfile::tempdir().unwrap();
         let staging = tempfile::tempdir().unwrap();
-        fs::write(existing.path().join("project.config.json"), "official").unwrap();
+        write_json(
+            &existing.path().join("project.config.json"),
+            &serde_json::json!({
+                "appid": "wx-stale",
+                "projectname": "old-name",
+                "compileType": "game",
+                "setting": {
+                    "urlCheck": true,
+                    "toolOnlySetting": true
+                },
+                "packOptions": { "ignore": ["local-only"] }
+            }),
+        )
+        .unwrap();
         fs::write(existing.path().join("icon.png"), [1, 2, 3]).unwrap();
-        fs::write(staging.path().join("project.config.json"), "generated").unwrap();
+        write_json(
+            &staging.path().join("project.config.json"),
+            &serde_json::json!({
+                "appid": "tt-current",
+                "projectname": "new-name",
+                "douyinProjectType": "native",
+                "setting": {
+                    "urlCheck": false,
+                    "nativeCompile": true
+                }
+            }),
+        )
+        .unwrap();
 
         preserve_project_shell(&TestPlatform, existing.path(), staging.path()).unwrap();
 
-        assert_eq!(
-            fs::read_to_string(staging.path().join("project.config.json")).unwrap(),
-            "official"
-        );
+        let config: serde_json::Value =
+            serde_json::from_slice(&fs::read(staging.path().join("project.config.json")).unwrap())
+                .unwrap();
+        assert_eq!(config["appid"], "tt-current");
+        assert_eq!(config["projectname"], "new-name");
+        assert_eq!(config["douyinProjectType"], "native");
+        assert!(config.get("compileType").is_none());
+        assert_eq!(config["setting"]["urlCheck"], false);
+        assert_eq!(config["setting"]["nativeCompile"], true);
+        assert_eq!(config["setting"]["toolOnlySetting"], true);
+        assert_eq!(config["packOptions"]["ignore"][0], "local-only");
         assert_eq!(
             fs::read(staging.path().join("icon.png")).unwrap(),
             [1, 2, 3]
         );
+    }
+
+    #[test]
+    fn malformed_preserved_project_config_cannot_replace_generated_config() {
+        let existing = tempfile::tempdir().unwrap();
+        let staging = tempfile::tempdir().unwrap();
+        fs::write(existing.path().join("project.config.json"), "not-json").unwrap();
+        write_json(
+            &staging.path().join("project.config.json"),
+            &serde_json::json!({ "appid": "tt-current" }),
+        )
+        .unwrap();
+
+        preserve_project_shell(&TestPlatform, existing.path(), staging.path()).unwrap();
+
+        let config: serde_json::Value =
+            serde_json::from_slice(&fs::read(staging.path().join("project.config.json")).unwrap())
+                .unwrap();
+        assert_eq!(config["appid"], "tt-current");
     }
 
     #[test]
@@ -1004,6 +1190,7 @@ mod tests {
         assert!(source.contains("\"profileClockRetry\":false"));
         assert!(source.contains("\"maxCanvasWidth\":0"));
         assert!(source.contains("\"maxCanvasHeight\":0"));
+        assert!(source.contains("\"assetRoot\":\"assets\""));
         assert!(source.contains("installBevyMiniGameAdapter"));
     }
 

@@ -35,6 +35,10 @@ impl MiniGamePlatform for WeChatPlatform {
         Some("bevy")
     }
 
+    fn asset_subpackage(&self) -> Option<&'static str> {
+        Some("bevy")
+    }
+
     fn max_main_package_bytes(&self) -> Option<u64> {
         Some(4 * 1024 * 1024)
     }
@@ -119,6 +123,7 @@ mod tests {
         assert!(WeChatPlatform.profile_clock_retry());
         assert_eq!(WeChatPlatform.max_render_resolution(), Some((1280, 720)));
         assert_eq!(WeChatPlatform.runtime_subpackage(), Some("bevy"));
+        assert_eq!(WeChatPlatform.asset_subpackage(), Some("bevy"));
         assert_eq!(
             WeChatPlatform.max_main_package_bytes(),
             Some(4 * 1024 * 1024)

@@ -24,7 +24,7 @@ compile_error!("The `douyin` and `wechat` features are mutually exclusive");
 
 use avian2d::{math::*, prelude::*};
 #[cfg(feature = "web_audio")]
-use bevy::audio::{AudioPlayer, PlaybackSettings};
+use bevy::audio::{AudioPlayer, PlaybackSettings, Volume};
 #[cfg(not(target_arch = "wasm32"))]
 use bevy::window::{MonitorSelection, WindowMode};
 use bevy::{
@@ -45,6 +45,8 @@ use bevy_minigame::MiniGamePlugin;
 
 #[cfg(feature = "web_audio")]
 use audio::Bgm;
+#[cfg(all(target_arch = "wasm32", feature = "minigame"))]
+use audio::WasmBgm;
 use audio::{GameSound, SoundLevels, play_sfx};
 use game::{
     ArenaSolid, Best, EMOJI_DATA, Emoji, GamePlugin, GameState, NextValue, RoundEndJointGroup,
@@ -123,24 +125,25 @@ async fn run_split_game() {
 
 fn run_game() {
     let mut app = App::new();
-    app.add_plugins(
-        DefaultPlugins
-            .set(ImagePlugin::default_nearest())
-            .set(AssetPlugin {
-                file_path: if cfg!(target_arch = "wasm32") {
-                    "assets".into()
-                } else {
-                    "emoji-merge/assets".into()
-                },
-                meta_check: AssetMetaCheck::Never,
-                ..default()
-            })
-            .set(WindowPlugin {
-                primary_window: Some(primary_window()),
-                ..default()
-            }),
-    )
-    .add_plugins(PhysicsPlugins::default().with_length_unit(20.0));
+    let default_plugins = DefaultPlugins
+        .set(ImagePlugin::default_nearest())
+        .set(AssetPlugin {
+            file_path: if cfg!(all(target_arch = "wasm32", feature = "wechat")) {
+                "bevy/assets".into()
+            } else if cfg!(target_arch = "wasm32") {
+                "assets".into()
+            } else {
+                "emoji-merge/assets".into()
+            },
+            meta_check: AssetMetaCheck::Never,
+            ..default()
+        })
+        .set(WindowPlugin {
+            primary_window: Some(primary_window()),
+            ..default()
+        });
+    app.add_plugins(default_plugins)
+        .add_plugins(PhysicsPlugins::default().with_length_unit(20.0));
     #[cfg(all(target_arch = "wasm32", feature = "minigame"))]
     app.add_plugins(MiniGamePlugin::default());
     app.add_plugins(AgentHarnessPlugin::new(AgentHarnessConfig {
@@ -327,7 +330,10 @@ struct EvojiInteractionStar {
 
 #[derive(Resource, Default)]
 struct BgmStartup {
-    #[cfg(feature = "web_audio")]
+    #[cfg(any(
+        feature = "web_audio",
+        all(target_arch = "wasm32", feature = "minigame")
+    ))]
     started: bool,
 }
 
@@ -1053,55 +1059,62 @@ fn setup_plants(mut commands: Commands, asset_server: Res<AssetServer>) {
 }
 
 /// BGM（原作 music_player_play_song(closed_shop, 0.375)）。音量/生命周期由 `audio::update_bgm` 控制。
+/// `web_audio` also covers browser WASM through Bevy's built-in cpal/WebAudio
+/// backend; the host bridge below is only for no-default-feature Mini Games.
 #[cfg(feature = "web_audio")]
-fn spawn_bgm(commands: &mut Commands, asset_server: &AssetServer) {
+fn spawn_bgm(commands: &mut Commands, asset_server: &AssetServer, levels: &SoundLevels) -> bool {
     commands.spawn((
         AudioPlayer::new(asset_server.load("Recettear OST - Closed Shop.ogg")),
-        PlaybackSettings::LOOP,
+        PlaybackSettings::LOOP.with_volume(Volume::Linear(audio::bgm_volume(levels))),
         Bgm,
     ));
+    true
 }
 
+#[cfg(all(target_arch = "wasm32", feature = "minigame"))]
+fn spawn_bgm(commands: &mut Commands, _asset_server: &AssetServer, levels: &SoundLevels) -> bool {
+    let player = web::audio_create("Recettear OST - Closed Shop.ogg", true);
+    if player == 0 {
+        return false;
+    }
+    web::audio_set_volume(player, audio::bgm_volume(levels));
+    web::audio_set_playback_rate(player, 1.0);
+    // Keep this call on the first input frame. Browsers require playback to be
+    // initiated by a user gesture, while Mini Game hosts accept the same path.
+    web::audio_play(player);
+    commands.spawn((WasmBgm(player),));
+    true
+}
+
+#[cfg(feature = "web_audio")]
 fn setup_bgm(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
+    levels: Res<SoundLevels>,
     mut startup: ResMut<BgmStartup>,
 ) {
-    #[cfg(not(feature = "web_audio"))]
-    {
-        let _ = (&mut commands, &asset_server, &mut startup);
-        return;
-    }
-    #[cfg(feature = "web_audio")]
-    {
-        if cfg!(target_arch = "wasm32") {
-            return;
-        }
-        spawn_bgm(&mut commands, &asset_server);
-        startup.started = true;
-    }
+    startup.started = spawn_bgm(&mut commands, &asset_server, &levels);
 }
 
+#[cfg(not(feature = "web_audio"))]
+fn setup_bgm() {}
+
+#[cfg(all(target_arch = "wasm32", feature = "minigame"))]
 fn start_bgm_after_input(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
+    levels: Res<SoundLevels>,
     pointer: Res<PrimaryPointer>,
     mut startup: ResMut<BgmStartup>,
 ) {
-    #[cfg(not(feature = "web_audio"))]
-    {
-        let _ = (&mut commands, &asset_server, &pointer, &mut startup);
+    if startup.started || !pointer.just_pressed() {
         return;
     }
-    #[cfg(feature = "web_audio")]
-    {
-        if startup.started || !pointer.just_pressed() {
-            return;
-        }
-        spawn_bgm(&mut commands, &asset_server);
-        startup.started = true;
-    }
+    startup.started = spawn_bgm(&mut commands, &asset_server, &levels);
 }
+
+#[cfg(not(all(target_arch = "wasm32", feature = "minigame")))]
+fn start_bgm_after_input() {}
 
 fn mark_web_ready() {
     web::mark_ready();

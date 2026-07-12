@@ -11,7 +11,7 @@ pub struct PackageArgs {
     /// Raw Cargo-produced Wasm input.
     #[arg(long)]
     pub wasm: PathBuf,
-    /// Asset directory copied to `assets/`.
+    /// Asset directory copied to the platform's configured asset root.
     #[arg(long)]
     pub assets: Option<PathBuf>,
     /// Generated Mini Game project directory.
