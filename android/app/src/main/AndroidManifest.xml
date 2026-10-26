@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 阶段 1 起按模块追加：INTERNET 之外，TapDB 还要 ACCESS_NETWORK_STATE；
+         排行榜分享截图要 WRITE_EXTERNAL_STORAGE（targetSdk>=29 走分区存储按需处理） -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <application
+        android:label="@string/app_name"
+        android:hasCode="true"
+        android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+        android:usesCleartextTraffic="false">
+
+        <activity
+            android:name="android.app.NativeActivity"
+            android:label="@string/app_name"
+            android:exported="true"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|smallestScreenSize">
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="demo" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>

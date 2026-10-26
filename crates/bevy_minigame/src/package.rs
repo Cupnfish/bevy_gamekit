@@ -35,6 +35,19 @@ const GENERATED_ROOT_FILES: [&str; 7] = [
     "wasm-split-report.json",
 ];
 
+/// Packaging pipeline used by a platform.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PackagingKind {
+    /// No-DOM Mini Game host: `game.js`/`game.json` entry, `adapter.js`
+    /// browser-environment shim, optional wasm splitting and Brotli.
+    #[default]
+    MiniGame,
+    /// Standard browser host (DOM + WebGL available, e.g. TapTap H5): plain
+    /// `wasm-bindgen --target web` module loaded by a generated `index.html`.
+    /// Wasm splitting is skipped; the browser fetches the module directly.
+    BrowserWeb,
+}
+
 /// Platform-specific configuration consumed by the generic packaging engine.
 pub trait MiniGamePlatform {
     /// Stable lowercase platform identifier used by the JavaScript adapter.
@@ -95,6 +108,50 @@ pub trait MiniGamePlatform {
             "deviceOrientation": options.orientation.as_str(),
             "showStatusBar": false
         })
+    }
+
+    /// Selects the packaging pipeline. Browser-web hosts use
+    /// [`PackagingKind::BrowserWeb`] together with [`Self::browser_index_html`]
+    /// and [`Self::browser_glue_js`].
+    fn packaging_kind(&self) -> PackagingKind {
+        PackagingKind::MiniGame
+    }
+
+    /// Browser-web hosts: contents of the generated `index.html`. The template
+    /// must load `./game_wasm.js` as an ES module and start the game once
+    /// `init()` resolves (the Rust `main` runs automatically via
+    /// `__wbindgen_start`; do not call an exported entry again).
+    fn browser_index_html(&self, options: &PackageOptions) -> String {
+        format!(
+            r#"<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>{title}</title>
+<style>html,body{{margin:0;padding:0;height:100%;background:#faf8ef;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;}}</style>
+</head>
+<body>
+<script src="./glue.js"></script>
+<script type="module">
+import init from './game_wasm.js';
+init().catch((e) => console.error(e));
+</script>
+</body>
+</html>
+"#,
+            title = options.project_name,
+        )
+    }
+
+    /// Browser-web hosts: contents of `glue.js`, which must install a
+    /// `window.BevyMiniGame` object (same surface as `runtime/adapter.js`:
+    /// `available`, `systemInfoJson`, `setPreferredFramesPerSecond`,
+    /// `takeLifecycleEvent`, `storageGet/Set/Remove`) implemented over browser
+    /// APIs and the host SDK.
+    fn browser_glue_js(&self, options: &PackageOptions) -> String {
+        let _ = options;
+        String::new()
     }
 
     /// Developer-tool-owned files retained when rebuilding an open project.
@@ -176,6 +233,100 @@ pub fn package(platform: &dyn MiniGamePlatform, options: &PackageOptions) -> Res
     Ok(report)
 }
 
+/// Browser-web packaging (TapTap H5 and similar DOM hosts): plain
+/// `wasm-bindgen --target web` module, a generated `index.html`, and the
+/// platform glue. No Mini Game entry files, adapter shim, splitting, or
+/// Brotli — the browser fetches the module directly.
+fn package_browser_web(
+    platform: &dyn MiniGamePlatform,
+    options: &PackageOptions,
+    staging_options: &PackageOptions,
+    staging: &Path,
+) -> Result<PackageReport> {
+    run_wasm_bindgen(staging_options, "web")?;
+
+    // Build number: monotonic per project (counter file lives next to the
+    // output directory). Injected as window.__GAME_BUILD so the game can
+    // display it, and appended to every asset reference for cache busting.
+    let counter_path = options
+        .output
+        .parent()
+        .map(|d| d.join(".build-number"))
+        .expect("output 目录缺少父目录");
+    let build_number: u32 = fs::read_to_string(&counter_path)
+        .ok()
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(0)
+        + 1;
+    fs::write(&counter_path, build_number.to_string())?;
+
+    // Cache busting: hash the produced artifacts into their file names so a
+    // re-upload can never be served stale files by the host's webview cache.
+    let wasm_bytes = fs::read(staging.join("game_wasm_bg.wasm"))?;
+    let wasm_hash = content_hash(&wasm_bytes);
+    let wasm_name = format!("game_wasm_bg.{wasm_hash}.wasm");
+    fs::rename(staging.join("game_wasm_bg.wasm"), staging.join(&wasm_name))?;
+
+    let js_source = fs::read_to_string(staging.join("game_wasm.js"))?;
+    let js_hash = content_hash(js_source.as_bytes());
+    let js_name = format!("game_wasm.{js_hash}.js");
+    let js_source = js_source.replace("game_wasm_bg.wasm", &wasm_name);
+    fs::remove_file(staging.join("game_wasm.js"))?;
+    fs::write(staging.join(&js_name), js_source)?;
+
+    let glue_hash = content_hash(platform.browser_glue_js(options).as_bytes());
+    let glue_name = format!("glue.{glue_hash}.js");
+    fs::write(staging.join(&glue_name), platform.browser_glue_js(options))?;
+
+    let index_html = platform
+        .browser_index_html(options)
+        .replace("./game_wasm.js", &format!("./{js_name}?v={build_number}"))
+        .replace("./glue.js", &format!("./{glue_name}?v={build_number}"))
+        .replace(
+            "<script type=\"module\">",
+            &format!(
+                "<script>window.__GAME_BUILD = {build_number};</script>
+<script type=\"module\">"
+            ),
+        );
+    fs::write(staging.join("index.html"), index_html)?;
+    fs::write(
+        staging.join("build-number.txt"),
+        build_number.to_string(),
+    )?;
+    if let Some(assets) = &options.assets {
+        copy_tree(assets, &staging.join("assets"), &options.exclude_extensions)?;
+    }
+    preserve_project_shell(platform, &options.output, staging)?;
+
+    let mut report = build_report(platform, staging_options)?;
+    report.output = options.output.clone();
+    if let Some(limit) = options.max_total_bytes
+        && report.total_bytes > limit
+    {
+        bail!(
+            "{} package is {:.2} MiB, above the configured {:.2} MiB upload limit",
+            platform.display_name(),
+            report.total_bytes as f64 / (1024.0 * 1024.0),
+            limit as f64 / (1024.0 * 1024.0),
+        );
+    }
+    let report_json = serde_json::to_vec_pretty(&report)?;
+    fs::write(staging.join("package-report.json"), report_json)?;
+    Ok(report)
+}
+
+/// FNV-1a 64-bit content hash, rendered as 16 hex chars. Used for cache
+/// busting file names; collision probability is negligible for this purpose.
+fn content_hash(bytes: &[u8]) -> String {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100_0000_01b3);
+    }
+    format!("{hash:016x}")
+}
+
 fn package_to(
     platform: &dyn MiniGamePlatform,
     options: &PackageOptions,
@@ -184,7 +335,11 @@ fn package_to(
     let mut staging_options = options.clone();
     staging_options.output = staging.to_path_buf();
 
-    run_wasm_bindgen(&staging_options)?;
+    if platform.packaging_kind() == PackagingKind::BrowserWeb {
+        return package_browser_web(platform, options, &staging_options, staging);
+    }
+
+    run_wasm_bindgen(&staging_options, "no-modules")?;
     export_bindgen_module(&staging.join("game_wasm.js"))?;
     if let Some(decoder_wasm) = &options.wasm_split_decoder {
         let report = split(&SplitOptions {
@@ -546,11 +701,11 @@ fn validate_options(options: &PackageOptions) -> Result<()> {
     Ok(())
 }
 
-fn run_wasm_bindgen(options: &PackageOptions) -> Result<()> {
+fn run_wasm_bindgen(options: &PackageOptions, bindgen_target: &str) -> Result<()> {
     let status = Command::new(&options.wasm_bindgen)
         .args([
             "--target",
-            "no-modules",
+            bindgen_target,
             "--out-name",
             "game_wasm",
             "--no-typescript",

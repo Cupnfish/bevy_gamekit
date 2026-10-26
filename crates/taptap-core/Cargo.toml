@@ -1,0 +1,13 @@
+[package]
+name = "taptap-core"
+description = "TapTap SDK Rust 适配——平台无关的配置、错误码与请求/事件类型"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

@@ -1,0 +1,11 @@
+[package]
+name = "bevy_taptap"
+description = "TapTap SDK 的 Bevy 插件——把平台回调转成 Bevy 事件"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+bevy = { workspace = true }
+taptap-core = { workspace = true }
+taptap-android = { workspace = true }

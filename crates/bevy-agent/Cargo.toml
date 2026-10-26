@@ -7,7 +7,7 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 bevy_agent_harness = { path = "../bevy_agent_harness", default-features = false }
-bevy = { version = "0.19", default-features = false, features = [
+bevy = { version = "0.20", default-features = false, features = [
     "keyboard",
     "bevy_remote",
 ] }

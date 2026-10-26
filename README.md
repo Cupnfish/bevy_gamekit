@@ -1,6 +1,6 @@
 # bevy_gamekit
 
-**🎮 Play the demo:** <https://cupnfish.github.io/bevy_gamekit/> — a Bevy 0.19
+**🎮 Play the demo:** <https://cupnfish.github.io/bevy_gamekit/> — a Bevy 0.20
 recreation of [emoji-merge](https://github.com/a327ex/emoji-merge), and the test
 vehicle for the crates below.
 
@@ -19,11 +19,11 @@ hosts**.
 ## Test game: `bevy_emoji`
 
 The crates are developed and exercised against **`bevy_emoji`** — a from-scratch
-Bevy 0.19 + Avian recreation of [**emoji-merge**][upstream-src] by
+Bevy 0.20 + Avian recreation of [**emoji-merge**][upstream-src] by
 [`a327ex`][a327ex], the Suika-style game about dropping and merging emojis. It
 is the root package of this workspace (binary `bevy_emoji`) and the demo / test
 vehicle for the toolkits above. The original is Lua on LÖVE; this port is Rust
-on **Bevy 0.19** + **Avian** (2D physics) + Bevy's built-in `bevy::audio`.
+on **Bevy 0.20** + **Avian** (2D physics) + Bevy's built-in `bevy::audio`.
 Gameplay rules, emoji set, and art assets are reused from the original under its
 license; none of the original Lua code is.
 
@@ -262,7 +262,7 @@ into an importable Mini Game project.
 Two roles:
 
 - **Runtime bridge (compiled into the game).** A generated `runtime/adapter.js`
-  installs the DOM-less surface Bevy 0.19's winit, wgpu, touch input, and
+  installs the DOM-less surface Bevy 0.20's winit, wgpu, touch input, and
   HTTP-style asset reader expect, before the Wasm module starts. The
   `MiniGamePlugin` surfaces platform services to Bevy: system info, lifecycle
   show/hide, key-value storage, and a preferred-FPS `requestAnimationFrame`

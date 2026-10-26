@@ -8,7 +8,7 @@ browser DOM. This crate supplies:
 
 - `DouyinMiniGamePlugin`, system information, lifecycle messages, storage, and
   preferred-FPS APIs.
-- `runtime/adapter.js`, a compatibility surface for Bevy 0.19's winit, wgpu,
+- `runtime/adapter.js`, a compatibility surface for Bevy 0.20's winit, wgpu,
   touch input, and HTTP-style asset reader.
 - `bevy-douyin`, a CLI that converts raw Cargo Wasm with wasm-bindgen's
   `no-modules` target and creates an importable Mini Game project.

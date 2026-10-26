@@ -1,0 +1,71 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+// 正式签名（tapdemo.keystore 在仓库根、gitignore；凭据文件同样 gitignore）。
+// 该证书的 MD5 需登记到开发者中心「游戏服务」的签名配置，否则 init 报 1001。
+def keystoreProps = new Properties()
+def keystorePropsFile = rootProject.file("keystore.properties")
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(new FileInputStream(keystorePropsFile))
+}
+
+android {
+    namespace 'cn.taptap.demo'
+    compileSdk 36
+
+    signingConfigs {
+        if (keystorePropsFile.exists()) {
+            tapdemo {
+                storeFile file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
+
+    defaultConfig {
+        // 与开发者中心游戏 980143 创建时登记的包名一致（Java 包名 namespace 仍是
+        // cn.taptap.demo，两者互不影响）
+        applicationId "cn.doumi.tapdemo"
+        minSdk 26
+        targetSdk 36
+        versionCode 1
+        versionName "0.1.0"
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (keystorePropsFile.exists()) {
+                signingConfig signingConfigs.tapdemo
+            } else {
+                signingConfig signingConfigs.debug
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+}
+
+// TapSDK v4（mavenCentral）。模块清单按阶段追加：tap-cloudsave / tap-achievement /
+// tap-leaderboard-androidx / tap-compliance / tap-license / tap-update / tap-share /
+// tap-review / tap-moment / tap-rep / tap-relation / com.taptap.android.payment:iap
+dependencies {
+    implementation 'com.taptap.sdk:tap-core:4.10.9'
+    implementation 'com.taptap.sdk:tap-login:4.10.9'
+    implementation 'com.taptap.sdk:tap-db:4.10.9'
+    implementation 'com.taptap.sdk:tap-cloudsave:4.10.9'
+}

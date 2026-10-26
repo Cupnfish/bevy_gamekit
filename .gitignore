@@ -22,3 +22,20 @@
 # Claude Code 本地配置——含 API token 等敏感信息，禁止提交。
 # 若要共享非敏感配置，请用 settings.local.json 之外的方式单独管理。
 /.claude
+
+# Android 宿主工程（apps/demo 配套）构建产物
+/android/build/
+/android/app/build/
+/android/.gradle/
+/android/.idea/
+/android/local.properties
+/android/app/src/main/jniLibs/
+
+# 密钥与签名（tapdemo.keystore、keystore.properties 含口令）
+*.jks
+*.keystore
+/android/keystore.properties
+
+# TapSDK 真实凭据（apps/demo 构建时自动优先读取）
+/apps/demo/taptap.local.json
+

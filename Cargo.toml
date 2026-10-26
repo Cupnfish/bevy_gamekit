@@ -5,14 +5,35 @@ edition = "2024"
 
 [workspace]
 members = [
+    "apps/demo",
     "crates/bevy_agent_harness",
     "crates/bevy-agent",
     "crates/bevy_minigame",
     "crates/bevy_minigame_douyin",
     "crates/bevy_minigame_wasm_split",
     "crates/bevy_minigame_wechat",
+    "crates/bevy_minigame_taptap",
+    "crates/bevy_taptap",
+    "crates/taptap-android",
+    "crates/taptap-core",
 ]
 resolver = "2"
+
+# TapTap SDK 适配 crates（taptap-*/bevy_taptap/apps/demo）的继承表。
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+jni = "0.21"
+ndk-context = "0.1"
+bevy = { version = "0.20", features = ["android-native-activity", "wav"] }
+taptap-core = { path = "crates/taptap-core" }
+taptap-android = { path = "crates/taptap-android" }
+bevy_taptap = { path = "crates/bevy_taptap" }
 
 [features]
 default = ["web_audio"]
@@ -22,18 +43,17 @@ wechat = ["minigame"]
 web_audio = ["bevy/audio"]
 
 [dependencies]
-bevy = { version = "0.19", default-features = false, features = ["2d", "touch"] }
+bevy = { version = "0.20", default-features = false, features = ["2d", "touch"] }
 serde = { version = "1", features = ["derive"] }
 rand = "0.10"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-avian2d = { git = "https://github.com/avianphysics/avian.git", rev = "fc99fdcdbff804fbbe6dc1eb7fc4137e677853d2" }
+avian2d = "0.8"
 bevy_agent_harness = { path = "crates/bevy_agent_harness" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-avian2d = { git = "https://github.com/avianphysics/avian.git", rev = "fc99fdcdbff804fbbe6dc1eb7fc4137e677853d2", default-features = false, features = [
+avian2d = { version = "0.8", default-features = false, features = [
     "2d",
-    "f32",
     "parry-f32",
     "xpbd_joints",
     "bevy_scene",
