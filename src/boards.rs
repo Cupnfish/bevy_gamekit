@@ -171,7 +171,7 @@ fn spawn_board(
     let kick = (rand::random::<f32>() - 0.5) * 60.0;
     commands
         .entity(board)
-        .insert(LinearVelocity(Vector::X * kick));
+        .insert(LinearVelocity(RVector::X * kick));
     if matches!(kind, BoardKind::Next) {
         commands.entity(board).insert(NextBoard);
     }

@@ -985,6 +985,17 @@ fn push_drag(
 fn logical_key_for(key: KeyCode) -> (Key, Option<char>) {
     use KeyCode::*;
     match key {
+        // Bevy 0.20 text widgets read logical modifier state, not KeyCode.
+        ControlLeft | ControlRight => (Key::Control, None),
+        ShiftLeft | ShiftRight => (Key::Shift, None),
+        AltLeft | AltRight => (Key::Alt, None),
+        SuperLeft | SuperRight => (Key::Super, None),
+        Delete => (Key::Delete, None),
+        Home => (Key::Home, None),
+        End => (Key::End, None),
+        PageUp => (Key::PageUp, None),
+        PageDown => (Key::PageDown, None),
+        Insert => (Key::Insert, None),
         Space => (Key::Space, Some(' ')),
         Enter => (Key::Enter, None),
         Tab => (Key::Tab, Some('\t')),
@@ -1337,6 +1348,32 @@ fn aabb(points: [Vec2; 4]) -> (Vec2, Vec2) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn modifier_and_navigation_injection_preserves_logical_keys() {
+        for (physical, logical) in [
+            (KeyCode::ControlLeft, Key::Control),
+            (KeyCode::ControlRight, Key::Control),
+            (KeyCode::ShiftLeft, Key::Shift),
+            (KeyCode::ShiftRight, Key::Shift),
+            (KeyCode::AltLeft, Key::Alt),
+            (KeyCode::AltRight, Key::Alt),
+            (KeyCode::SuperLeft, Key::Super),
+            (KeyCode::SuperRight, Key::Super),
+            (KeyCode::Delete, Key::Delete),
+            (KeyCode::Home, Key::Home),
+            (KeyCode::End, Key::End),
+            (KeyCode::PageUp, Key::PageUp),
+            (KeyCode::PageDown, Key::PageDown),
+            (KeyCode::Insert, Key::Insert),
+        ] {
+            assert_eq!(logical_key_for(physical), (logical, None));
+        }
+        assert_eq!(
+            logical_key_for(KeyCode::KeyA),
+            (Key::Character("a".into()), Some('a'))
+        );
+    }
 
     #[test]
     fn integer_canvas_mapping_preserves_letterbox_center() {

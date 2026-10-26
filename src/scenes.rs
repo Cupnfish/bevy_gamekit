@@ -17,8 +17,8 @@ pub fn sprite_scene(
             image: { image },
             custom_size: { Some(size) },
         }
-        template_value(transform)
-        template_value(layers)
+        transform
+        layers
     }
 }
 
@@ -34,9 +34,9 @@ pub fn anchored_sprite_scene(
             image: { image },
             custom_size: { Some(size) },
         }
-        template_value(anchor)
-        template_value(transform)
-        template_value(layers)
+        anchor
+        transform
+        layers
     }
 }
 
@@ -51,7 +51,7 @@ pub fn colored_sprite_scene(
             color: { color },
             custom_size: { Some(size) },
         }
-        template_value(transform)
-        template_value(layers)
+        transform
+        layers
     }
 }

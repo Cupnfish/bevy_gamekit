@@ -2,7 +2,7 @@
 //!
 //! 对应原作 anchor 的 outline.frag（5×5 邻域 alpha 膨胀）。
 //! 挂在 [`OutlinePostProcess`] 标记的相机上，对其输出跑一个全屏后处理 pass。
-//! 结构照搬本地 bevy/examples/shader_advanced/custom_post_processing.rs（v0.19.0），改成 2D、去掉 settings uniform。
+//! 结构照搬本地 bevy/examples/shader_advanced/custom_post_processing.rs，改成 2D、去掉 settings uniform。
 
 use bevy::{
     asset::{load_internal_asset, uuid_handle},
@@ -29,6 +29,7 @@ const OUTLINE_SHADER_HANDLE: Handle<Shader> = uuid_handle!("b335ceb4-5b64-4719-9
 
 /// 挂在相机上，标记该相机的输出走 outline 后处理。
 #[derive(Component, Default, Clone, Copy, ExtractComponent)]
+#[extract_app(RenderApp)]
 pub struct OutlinePostProcess;
 
 pub struct OutlinePlugin;

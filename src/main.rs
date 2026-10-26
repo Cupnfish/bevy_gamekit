@@ -158,7 +158,7 @@ fn run_game() {
     .add_plugins(GamePlugin)
     .add_plugins(boards::BoardsPlugin)
     // 原作重力 (0, 360)（px/s²，y 向下）→ 世界 y 向上取负。
-    .insert_resource(Gravity(Vector::NEG_Y * 360.0))
+    .insert_resource(Gravity(RVector::NEG_Y * 360.0))
     .init_resource::<DropState>()
     .init_resource::<DistanceToTop>()
     .init_resource::<BgmStartup>()
